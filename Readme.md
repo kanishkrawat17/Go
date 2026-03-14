@@ -54,6 +54,58 @@
 - Defined in `go.mod` via `go mod init <module-name>`
 - Acts as the root prefix for all import paths in the project
 
+## Structs
+
+- Define a struct with `type`:
+  ```go
+  type User struct {
+      Name   string
+      Age    string
+      Skills []string
+  }
+  ```
+- **Creating a struct literal** — always need the type name before `{`:
+  ```go
+  user := User{Name: "Kanishk", Age: "25", Skills: []string{"React", "Go"}}
+  ```
+- You **cannot** write `user = { ... }` (unlike JS/JSON) — the type name is always required
+- **Slices** use `[]string{"a", "b"}` not `["a", "b"]`
+- **Trailing comma** is required when closing `}` is on a new line
+- Two ways to declare and assign:
+  ```go
+  user := User{Name: "Kanishk"}           // short declaration + assignment
+  var user User
+  user = User{Name: "Kanishk"}            // separate declaration, then assignment
+  ```
+
+### Struct Tags (JSON)
+- Add tags to control how fields are serialized:
+  ```go
+  type User struct {
+      Name   string   `json:"name"`
+      Age    string   `json:"age"`
+      Skills []string `json:"skills"`
+  }
+  ```
+- Without tags, JSON keys would be uppercase (`Name`, `Age`, `Skills`)
+
+## JSON Marshal
+
+- `json.Marshal(v)` converts a struct to JSON `[]byte`
+- Import `"encoding/json"`
+- Returns **two values**: `[]byte` and `error` (Go's error handling pattern)
+- Must check `err != nil` — Go doesn't have try/catch
+- Convert `[]byte` to string with `string(jsonData)`:
+  ```go
+  jsonData, err := json.Marshal(user)
+  if err != nil {
+      fmt.Println("Error:", err)
+      return
+  }
+  fmt.Println(string(jsonData))
+  // Output: {"name":"Kanishk","age":"25","skills":["React","Go"]}
+  ```
+
 ## Project Structure Example
 
 ```
