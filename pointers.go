@@ -6,6 +6,5 @@ func Double (n int) int {
 }
 
 func DoubleUsingPointer (n *int)  {
-	n = n * 2;
-	// return n;
+	*n = *n * 2
 }

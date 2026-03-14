@@ -106,6 +106,82 @@
   // Output: {"name":"Kanishk","age":"25","skills":["React","Go"]}
   ```
 
+## Pointers
+
+### What is a Pointer?
+- A pointer holds the **memory address** of a variable, not the value itself
+- Think of it like a house address vs the house — the pointer is the address, the value is the house
+
+### Two Key Operators
+
+| Operator | Name        | What it does                        | Example          |
+|----------|-------------|-------------------------------------|------------------|
+| `&`      | Address-of  | Gets the memory address of a variable | `&y` → `0xABC`  |
+| `*`      | Dereference | Gets the value at a memory address    | `*n` → `2`      |
+
+### Declaring a Pointer
+- `*int` means "a pointer to an int" (used in type declarations)
+- `*n` means "the value that n points to" (used in expressions)
+  ```go
+  var y int = 2
+  var p *int = &y    // p is a pointer to y, holds y's address
+  fmt.Println(p)     // 0x1400000e0a8 (memory address)
+  fmt.Println(*p)    // 2 (the value at that address)
+  ```
+
+### Why Pointers? — Pass by Value vs Pass by Reference
+
+Go passes arguments **by value** (copies them). Without pointers, you can't modify the original variable.
+
+```go
+// WITHOUT pointer — works on a COPY, original unchanged
+func Double(n int) int {
+    n = n * 2
+    return n
+}
+
+// WITH pointer — modifies the ORIGINAL value
+func DoubleUsingPointer(n *int) {
+    *n = *n * 2
+}
+```
+
+```go
+x := 2
+y := 2
+
+Double(x)                // x is still 2 (copy was doubled, not x)
+DoubleUsingPointer(&y)   // y is now 4 (modified directly via address)
+```
+
+### Visual Breakdown
+
+```
+var y int = 2
+
+  Variable y:
+  ┌─────────┐
+  │    2     │  ← value
+  │ addr: A1 │  ← memory address
+  └─────────┘
+
+  &y  = A1              (& gives the address)
+
+  DoubleUsingPointer(&y) — passes address A1
+
+  Inside the function:
+    n  = A1              (n holds the address)
+    *n = 2               (dereference — read value at A1)
+    *n = *n * 2          (write 4 to address A1)
+
+  Back in main:
+    y = 4                (y was modified directly)
+```
+
+### Common Mistakes
+- `n = n * 2` inside a pointer function — this tries to multiply an **address** by 2 (won't compile)
+- Must use `*n = *n * 2` — dereference first to get/set the actual value
+
 ## Project Structure Example
 
 ```
