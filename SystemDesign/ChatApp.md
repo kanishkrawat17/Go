@@ -10,22 +10,23 @@
 
 ## Table of Contents
 
-1. [Before We Start: How This Round Actually Works](#before-we-start-how-this-round-actually-works)
+1. [Before We Start: How This Round Works](#before-we-start-how-this-round-works)
 2. [Step 1: Requirements Clarification (Minutes 0-5)](#step-1-requirements-clarification-minutes-0-5)
 3. [Step 2: High-Level Architecture (Minutes 5-10)](#step-2-high-level-architecture-minutes-5-10)
-4. [Step 3: Data Model (Minutes 10-15)](#step-3-data-model-minutes-10-15)
-5. [Step 4: Component Design (Minutes 15-22)](#step-4-component-design-minutes-15-22)
-6. [Step 5: WebSocket Connection Management (Minutes 22-30)](#step-5-websocket-connection-management-minutes-22-30)
-7. [Step 6: Message Ordering & Delivery Receipts (Minutes 30-37)](#step-6-message-ordering--delivery-receipts-minutes-30-37)
-8. [Step 7: Offline Message Queue (Minutes 37-42)](#step-7-offline-message-queue-minutes-37-42)
-9. [Step 8: Scroll Position & Infinite Scroll Up (Minutes 42-48)](#step-8-scroll-position--infinite-scroll-up-minutes-42-48)
-10. [Step 9: Polish & Tradeoffs (Minutes 48-55)](#step-9-polish--tradeoffs-minutes-48-55)
-11. [Cross Questions Bank (with Answers)](#cross-questions-bank-with-answers)
-12. [Cheat Sheet: Things That Impress Interviewers](#cheat-sheet-things-that-impress-interviewers)
+4. [Step 3: API Endpoints -- REST + WebSocket Events (Minutes 10-15)](#step-3-api-endpoints----rest--websocket-events-minutes-10-15)
+5. [Step 4: Data Model Mapped to UI (Minutes 15-22)](#step-4-data-model-mapped-to-ui-minutes-15-22)
+6. [Step 5: Component Design (Minutes 22-27)](#step-5-component-design-minutes-22-27)
+7. [Step 6: WebSocket Connection Management (Minutes 27-35)](#step-6-websocket-connection-management-minutes-27-35)
+8. [Step 7: Message Ordering & Delivery Receipts (Minutes 35-42)](#step-7-message-ordering--delivery-receipts-minutes-35-42)
+9. [Step 8: Offline Message Queue (Minutes 42-47)](#step-8-offline-message-queue-minutes-42-47)
+10. [Step 9: Scroll Position & Infinite Scroll Up (Minutes 47-53)](#step-9-scroll-position--infinite-scroll-up-minutes-47-53)
+11. [Step 10: Wrap-Up & Tradeoffs (Minutes 53-58)](#step-10-wrap-up--tradeoffs-minutes-53-58)
+12. [Cross Questions Bank (with Answers)](#cross-questions-bank-with-answers)
+13. [Cheat Sheet: Things That Impress Interviewers](#cheat-sheet-things-that-impress-interviewers)
 
 ---
 
-## Before We Start: How This Round Actually Works
+## Before We Start: How This Round Works
 
 ### What the interviewer is REALLY evaluating:
 
@@ -36,7 +37,6 @@
 | **Trade-off awareness** | Can you explain WHY you chose X over Y? | Very High |
 | **Depth in key areas** | Can you go deep when probed? | High |
 | **Communication** | Do you think aloud? Can you draw/explain clearly? | High |
-| **Real-world awareness** | Do you mention edge cases, failures, scale? | Medium |
 
 ### What they are NOT evaluating:
 - Memorized system designs
@@ -48,7 +48,7 @@
 
 Say things like:
 - "One approach would be... but the trade-off is..."
-- "I'd lean towards X because in my experience..."
+- "I'd lean towards X because..."
 - "Let me think about the edge cases here..."
 
 ---
@@ -72,7 +72,6 @@ Then ask these questions. **Do not skip this.** Jumping straight into design is 
 | "Is there a typing indicator?" | Real-time feature, needs thought | "Yes, nice to have" |
 | "Do we need message search?" | Completely different problem if yes | "Not in scope for now" |
 | "Do we need offline support?" | Affects architecture significantly | "Yes" |
-| "Is there message editing/deletion?" | Affects data model | "Nice to have" |
 
 ### Non-Functional Requirements (state these yourself):
 
@@ -81,14 +80,11 @@ Then ask these questions. **Do not skip this.** Jumping straight into design is 
 > - **Reliability**: no messages should be lost, even on flaky networks
 > - **Message ordering**: messages must appear in the correct order
 > - **Offline resilience**: users should be able to queue messages when offline
-> - **Scalable**: should handle a conversation with thousands of messages (scroll performance)
-> - **Accessible**: keyboard navigable, screen reader friendly"
+> - **Scalable**: should handle a conversation with thousands of messages (scroll performance)"
 
 ### After clarification, summarize:
 
-> "So to summarize, I'm designing a 1-on-1 chat app with real-time messaging, delivery/read receipts, typing indicators, offline support, and text messages. I'll mention how to extend to group chat and media. Let me start with the high-level architecture."
-
-**Why this matters:** You just showed structured thinking and communication. Many candidates get rejected because they spend 40 minutes designing the wrong thing.
+> "So I'm designing a 1-on-1 chat app with real-time messaging, delivery/read receipts, typing indicators, offline support, and text messages. Let me start with the high-level architecture."
 
 ---
 
@@ -107,23 +103,20 @@ Then ask these questions. **Do not skip this.** Jumping straight into design is 
 │  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘ │
 │         │                 │                  │         │
 │  ┌──────▼─────────────────▼──────────────────▼──────┐ │
-│  │              State Management Layer               │ │
-│  │         (React Context / Zustand / Redux)         │ │
+│  │              State Management (Zustand)            │ │
 │  └──────────────────────┬────────────────────────────┘ │
 │                         │                              │
 │  ┌──────────────────────▼────────────────────────────┐ │
-│  │              Local Storage / IndexedDB             │ │
+│  │                   IndexedDB                        │ │
 │  │            (offline cache, message queue)          │ │
 │  └───────────────────────────────────────────────────┘ │
 └──────────────────────────┬───────────────────────────┘
                            │
               ┌────────────▼────────────┐
-              │     WebSocket Server    │
-              │   (persistent connection)│
+              │     WebSocket Server    │ ← persistent connection (real-time)
               └────────────┬────────────┘
               ┌────────────▼────────────┐
-              │      REST API Server    │
-              │  (auth, history, media) │
+              │      REST API Server    │ ← request-response (history, auth)
               └────────────┬────────────┘
               ┌────────────▼────────────┐
               │        Database         │
@@ -132,220 +125,705 @@ Then ask these questions. **Do not skip this.** Jumping straight into design is 
 
 ### What to say:
 
-> "I see three key communication channels between client and server:
+> "I see two communication channels between client and server:
 >
-> 1. **WebSocket connection** -- for real-time message delivery, typing indicators, presence/online status, and read receipts. This is a persistent, bi-directional connection.
+> 1. **WebSocket** -- for real-time stuff: message delivery, typing indicators, online/offline status, read receipts. This is a persistent, bi-directional connection.
 >
-> 2. **REST API** -- for non-real-time operations: authentication, fetching message history (pagination), user profile, uploading media. We don't need WebSocket for these because they're request-response.
+> 2. **REST API** -- for request-response stuff: login, fetching message history (with pagination), user profile. These are one-off requests, WebSocket would be overkill.
 >
-> 3. **Service Worker** -- for offline support. It intercepts failed requests, queues messages in IndexedDB, and retries when connection is restored.
->
-> On the client side, I have a state management layer that acts as the single source of truth for all chat data. The UI subscribes to this state."
+> On the client, a **Zustand store** is the single source of truth. The UI reads from it, WebSocket events write to it, and it syncs to **IndexedDB** for offline support."
 
 ### Cross-question you might get here:
 
-> **Interviewer: "Why WebSocket and not something else like Server-Sent Events or long polling?"**
+> **Interviewer: "Why WebSocket and not SSE or long polling?"**
 
-Your answer:
+| Option | How it works | Good for chat? |
+|--------|-------------|----------------|
+| **Long Polling** | Client keeps making HTTP requests, server holds each open until data arrives | Works but wasteful -- each poll = new connection, high latency |
+| **SSE (Server-Sent Events)** | Server pushes to client over one HTTP connection | **One-way only** (server → client). Client still needs REST to send messages. Not ideal. |
+| **WebSocket** | Persistent two-way pipe. Both sides send whenever they want. | Perfect for chat. Low overhead after initial handshake. |
 
-> "Good question. Let me compare the three options:
->
-> - **Long Polling**: Client keeps making HTTP requests. Works everywhere but is inefficient -- each poll is a new TCP connection, high latency, wastes bandwidth. Acceptable as a fallback.
->
-> - **Server-Sent Events (SSE)**: Server pushes events to the client over a single HTTP connection. It's simpler than WebSocket but **unidirectional** -- the client can't send messages through the SSE channel. For chat, we need bidirectional communication, so SSE alone isn't enough. We'd still need a separate channel for sending messages.
->
-> - **WebSocket**: Persistent, bidirectional, low overhead after the initial handshake. Perfect for chat where both sides are constantly sending data.
->
-> I'd go with **WebSocket as primary**, with **long polling as a fallback** for environments where WebSocket is blocked (some corporate firewalls)."
+> "I'd use **WebSocket as primary**, with **long polling as fallback** for corporate firewalls that block WebSocket."
 
 ---
 
-## Step 3: Data Model (Minutes 10-15)
+## Step 3: API Endpoints -- REST + WebSocket Events (Minutes 10-15)
 
 ### What to say:
 
-> "Let me define the data shapes we'll be working with on the client side."
+> "Let me define the contract between frontend and backend -- what REST endpoints I need and what WebSocket events flow in each direction."
 
-### Message Object
+### REST API Endpoints
 
-```typescript
-interface Message {
-  id: string;               // Unique ID (UUID generated on client)
-  conversationId: string;   // Which chat thread
-  senderId: string;         // Who sent it
-  content: string;          // Message body
-  type: 'text' | 'image' | 'file';  // For future extensibility
-  timestamp: number;        // Unix ms -- server-assigned for ordering
-  clientTimestamp: number;   // Client-local time when composed
-  status: 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
-  replyTo?: string;         // ID of message being replied to (optional)
-}
+| Method | Endpoint | What it does | When it's called |
+|--------|----------|-------------|-----------------|
+| `POST` | `/auth/login` | Login, get access token | App open |
+| `GET` | `/conversations` | Get user's conversation list | App open, pull-to-refresh |
+| `GET` | `/conversations/:id/messages?before=timestamp&limit=30` | Get older messages (paginated) | Scroll up to load history |
+| `POST` | `/conversations` | Create a new conversation | User starts a new chat |
+| `POST` | `/media/upload` | Upload image/file, get back URL | User attaches media |
+| `GET` | `/users/:id` | Get user profile info | View profile |
+
+#### Key design choices to explain:
+
+> **Pagination:** "I use **cursor-based pagination** (`before=timestamp`) not page numbers (`page=3`). Why? Because in a chat app, new messages are being added constantly. If I'm on page 3 and 10 new messages arrive, page 3 now shows different messages. With cursor-based, I say 'give me 30 messages older than this timestamp' which is stable regardless of new messages."
+
+> **Why REST for history, not WebSocket?** "Message history is a classic request-response pattern -- I ask, server answers. REST gives me HTTP caching (browser can cache responses), retry semantics, and it's simpler. WebSocket is for stuff that happens *without* the client asking -- incoming messages, typing events, etc."
+
+### WebSocket Events
+
+#### Client → Server (what the frontend SENDS):
+
+| Event Type | Payload | When it's sent |
+|-----------|---------|---------------|
+| `send_message` | `{id, conversationId, content, type, clientTimestamp}` | User hits Send |
+| `typing` | `{conversationId}` | User is typing (throttled, every 3s) |
+| `read_ack` | `{conversationId, lastReadMessageId}` | User views a conversation |
+| `delivery_ack` | `{messageId}` | Client receives a new message |
+| `ping` | `{}` | Every 30s (heartbeat) |
+| `sync` | `{lastReceivedTimestamp}` | On reconnect (get missed messages) |
+
+#### Server → Client (what the frontend RECEIVES):
+
+| Event Type | Payload | What the UI does |
+|-----------|---------|-----------------|
+| `new_message` | `{message: Message}` | Add to message list, update conversation preview |
+| `message_ack` | `{id, timestamp, status: 'sent'}` | Update message from 'sending' → 'sent' (show ✓) |
+| `delivery_receipt` | `{messageId}` | Update message to 'delivered' (show ✓✓) |
+| `read_receipt` | `{conversationId, lastReadMessageId}` | Update messages up to that ID to 'read' (show blue ✓✓) |
+| `typing` | `{conversationId, userId}` | Show "Alice is typing..." |
+| `presence` | `{userId, status: 'online'/'offline'}` | Update green dot on avatar |
+| `pong` | `{}` | Connection is alive (heartbeat response) |
+
+### The full picture at a glance:
+
 ```
-
-### Why TWO timestamps?
-
-> "I'm keeping both `clientTimestamp` and `timestamp` deliberately:
->
-> - `clientTimestamp` is set when the user hits send. It's used for **optimistic UI** -- I show the message immediately in the chat, sorted by this time, so the user gets instant feedback.
->
-> - `timestamp` is assigned by the **server** when it receives the message. This is the source of truth for **ordering across users**. Once the server responds, I update the message with the server timestamp.
->
-> Why not just use client time? Because **client clocks can be wrong**. If User A's clock is 5 minutes ahead, their messages would appear out of order for User B. The server acts as the single source of truth for ordering."
-
-### Conversation Object
-
-```typescript
-interface Conversation {
-  id: string;
-  participants: string[];        // User IDs
-  lastMessage: Message | null;   // For conversation list preview
-  unreadCount: number;
-  updatedAt: number;             // For sorting conversations
-}
+┌───────────────────────────────────────────────────────────────┐
+│                         REST API                              │
+│                                                               │
+│  App loads ──► GET /conversations ──► Show conversation list  │
+│  Scroll up ──► GET /conversations/:id/messages ──► Prepend    │
+│  Login    ──► POST /auth/login ──► Get token                  │
+│                                                               │
+├───────────────────────────────────────────────────────────────┤
+│                     WebSocket (always open)                    │
+│                                                               │
+│  Client ──► send_message, typing, read_ack, ping              │
+│  Server ──► new_message, message_ack, delivery_receipt,       │
+│             read_receipt, typing, presence, pong               │
+└───────────────────────────────────────────────────────────────┘
 ```
-
-### Client-Side State Shape
-
-```typescript
-interface ChatState {
-  // Current user
-  currentUser: User;
-
-  // All conversations, keyed by ID for O(1) lookup
-  conversations: Record<string, Conversation>;
-
-  // Messages per conversation, keyed by conversation ID
-  // Each is an array sorted by timestamp
-  messages: Record<string, Message[]>;
-
-  // Active conversation
-  activeConversationId: string | null;
-
-  // Online status of users
-  onlineUsers: Set<string>;
-
-  // Who is currently typing in which conversation
-  typingIndicators: Record<string, string[]>; // convId -> [userId, ...]
-
-  // Network state
-  connectionStatus: 'connected' | 'connecting' | 'disconnected';
-
-  // Pending messages waiting to be sent (offline queue)
-  pendingMessages: Message[];
-}
-```
-
-### What to explain about this shape:
-
-> "A few intentional choices here:
->
-> 1. **Messages are normalized by conversation ID** -- I don't flatten all messages into one giant array. This means switching conversations is O(1) lookup, and I only load messages for conversations the user opens.
->
-> 2. **`conversations` is a Record (hash map), not an array** -- because I'll frequently need to update a specific conversation when a new message arrives. With an array, that's O(n) to find. With a Record, it's O(1).
->
-> 3. **`onlineUsers` is a Set** -- O(1) lookup for checking if someone is online.
->
-> 4. **`pendingMessages` is separate** -- these are messages the user sent while offline. They need special treatment (retry logic, eventual reconciliation with server)."
-
-### Cross-question:
-
-> **Interviewer: "Would you use Redux, Zustand, or Context for this state?"**
-
-Your answer:
-
-> "For a chat app, I'd avoid plain Context API because **any state change in context re-renders all subscribers**. Chat state changes very frequently (every incoming message), so this would cause performance issues.
->
-> I'd lean towards **Zustand** or **Redux Toolkit**:
-> - Zustand is simpler, has built-in selector support so components only re-render when their specific slice changes. Good for most cases.
-> - Redux Toolkit if the team is already familiar with Redux, or if we need powerful devtools and middleware (logging, persistence).
->
-> For this design, I'll go with Zustand for simplicity, with middleware for IndexedDB persistence."
 
 ---
 
-## Step 4: Component Design (Minutes 15-22)
+## Step 4: Data Model Mapped to UI (Minutes 15-22)
 
-### Component Tree
+### What to say:
+
+> "Let me show the data model by mapping it directly to the UI. Each piece of state exists because a specific part of the screen needs it."
+
+### The UI and What Data Powers Each Part
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                     connectionStatus ◄────────────────┐             │
+│  ┌──────────────────┐              ┌──────────────────┤             │
+│  │ "Reconnecting..."│  (shown when │  "Online" |      │             │
+│  │ "Connecting..."  │  disconnected│  "Connecting" |  │             │
+│  └──────────────────┘   only)      │  "Disconnected"  │             │
+│                                    └──────────────────┘             │
+│                                                                     │
+│  ┌──────────────────────────┐  ┌────────────────────────────────┐  │
+│  │      SIDEBAR             │  │         CHAT WINDOW             │  │
+│  │                          │  │                                  │  │
+│  │  ┌─ SearchBar ─────────┐│  │  ┌─ ChatHeader ───────────────┐ │  │
+│  │  │ [Search messages...] ││  │  │                             │ │  │
+│  │  └──────────────────────┘│  │  │  participant.name           │ │  │
+│  │                          │  │  │  onlineUsers.has(id)        │ │  │
+│  │  ┌─ ConversationItem ──┐│  │  │    → "Online" / "Offline"   │ │  │
+│  │  │                     ││  │  │                             │ │  │
+│  │  │  (○) Name1  Status  ││  │  │  typingIndicators[convId]   │ │  │
+│  │  │                     ││  │  │    → "Alice is typing..."    │ │  │
+│  │  │ ┌─ DATA USED: ────┐││  │  └─────────────────────────────┘ │  │
+│  │  │ │ conversation.    │││  │                                  │  │
+│  │  │ │  participants[0] │││  │  ┌─ MessageList ───────────────┐ │  │
+│  │  │ │   → name, avatar │││  │  │                             │ │  │
+│  │  │ │ conversation.    │││  │  │  messages[conversationId]   │ │  │
+│  │  │ │  lastMessage     │││  │  │   → array of Message objects│ │  │
+│  │  │ │   → preview text │││  │  │                             │ │  │
+│  │  │ │ conversation.    │││  │  │  ┌─ MessageBubble ────────┐ │ │  │
+│  │  │ │  unreadCount     │││  │  │  │                        │ │ │  │
+│  │  │ │   → badge "3"   │││  │  │  │  message.content       │ │ │  │
+│  │  │ │ onlineUsers      │││  │  │  │   → "Hey, how are you?"│ │ │  │
+│  │  │ │  .has(oderId)    │││  │  │  │                        │ │ │  │
+│  │  │ │   → green dot    │││  │  │  │  message.timestamp     │ │ │  │
+│  │  │ └─────────────────┘││  │  │  │   → "2:34 PM"          │ │ │  │
+│  │  └─────────────────────┘│  │  │  │                        │ │ │  │
+│  │                          │  │  │  │  message.status        │ │ │  │
+│  │  ┌─ ConversationItem ──┐│  │  │  │   → ✓ / ✓✓ / ✓✓ blue │ │ │  │
+│  │  │ (○) Name2  Status   ││  │  │  └────────────────────────┘ │ │  │
+│  │  └─────────────────────┘│  │  │                             │ │  │
+│  │                          │  │  └─────────────────────────────┘ │  │
+│  │  ┌─ ConversationItem ──┐│  │                                  │  │
+│  │  │ (○) Name3  Status   ││  │  ┌─ MessageInput ─────────────┐ │  │
+│  │  └─────────────────────┘│  │  │                             │ │  │
+│  │                          │  │  │ [+] [Type your message...] │ │  │
+│  │  ┌─ ConversationItem ──┐│  │  │                     [Send] │ │  │
+│  │  │ (○) Name4  Status   ││  │  │                             │ │  │
+│  │  └─────────────────────┘│  │  └─────────────────────────────┘ │  │
+│  └──────────────────────────┘  └────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Now the data model -- each field is justified by the UI above:
+
+```typescript
+interface ChatState {
+
+  // ── Powers the SIDEBAR (conversation list) ──────────────────
+  conversations: Record<string, Conversation>
+  //  Why Record (hash map) and not array?
+  //  → When a new message arrives, I need to update ONE conversation's
+  //    lastMessage. With an array I'd search through all of them (slow).
+  //    With Record, it's conversations["conv_123"] → instant.
+
+  // ── Powers the CHAT WINDOW (message area) ───────────────────
+  messages: Record<string, Message[]>
+  //  Key = conversationId, Value = sorted array of messages
+  //  → I only load messages for the conversation the user is viewing.
+  //    Switching conversations = just read a different key. No re-fetching.
+
+  activeConversationId: string | null
+  //  → Which conversation is currently open in the Chat Window.
+  //    null = no chat selected (show "Select a chat to start" screen).
+
+  // ── Powers the GREEN DOT on avatars ─────────────────────────
+  onlineUsers: Set<string>
+  //  Set of user IDs who are currently online.
+  //  → Set gives O(1) lookup: onlineUsers.has("user_456") → true/false
+  //  → Updated via WebSocket 'presence' events.
+
+  // ── Powers "Alice is typing..." in ChatHeader ───────────────
+  typingIndicators: Record<string, string[]>
+  //  Key = conversationId, Value = array of userIds who are typing
+  //  → typingIndicators["conv_123"] = ["user_456"]
+  //  → Purely in-memory. Never saved to database or IndexedDB.
+  //  → Auto-clears after 4 seconds of no new typing event.
+
+  // ── Powers the "Reconnecting..." banner at top ──────────────
+  connectionStatus: 'connected' | 'connecting' | 'disconnected'
+  //  → Shows/hides the connection banner.
+  //  → Updated by the WebSocket Manager.
+
+  // ── Powers the offline queue (invisible to user) ────────────
+  pendingMessages: Message[]
+  //  → Messages sent while offline. Stored in IndexedDB too.
+  //  → Flushed to server when connection is restored.
+}
+```
+
+### The two core data objects:
+
+```typescript
+interface Conversation {
+  id: string
+  participants: string[]           // → name + avatar in sidebar
+  lastMessage: Message | null      // → preview text in sidebar
+  unreadCount: number              // → badge "3" in sidebar
+  updatedAt: number                // → sort conversations (most recent first)
+}
+```
+
+```typescript
+interface Message {
+  id: string                       // UUID generated on client (for optimistic UI)
+  conversationId: string           // which conversation this belongs to
+  senderId: string                 // who sent it → left/right bubble alignment
+  content: string                  // the actual text
+  type: 'text' | 'image' | 'file' // for future extensibility
+
+  timestamp: number                // SERVER assigns this → used for ordering
+  clientTimestamp: number          // CLIENT sets this → used for optimistic display
+
+  status: 'sending'                // ⏳ gray clock (just hit send, waiting for server)
+        | 'sent'                   // ✓  single gray check (server received it)
+        | 'delivered'              // ✓✓ double gray check (other user's device got it)
+        | 'read'                   // ✓✓ double blue check (other user opened the chat)
+        | 'failed'                 // ❌ red icon + retry button (server never ACKed)
+}
+```
+
+### Mock Data: What the state ACTUALLY looks like (with real values)
+
+Here's the entire `ChatState` filled with mock data. Below it, I show exactly what the user sees rendered from each value.
+
+```typescript
+const chatState: ChatState = {
+
+  // ═══════════════════════════════════════════════════════════
+  //  CONVERSATIONS (powers the sidebar)
+  // ═══════════════════════════════════════════════════════════
+  conversations: {
+    "conv_101": {
+      id: "conv_101",
+      participants: ["user_me", "user_alice"],
+      lastMessage: {
+        id: "msg_550",
+        conversationId: "conv_101",
+        senderId: "user_alice",
+        content: "Sure, let's meet at 6!",
+        type: "text",
+        timestamp: 1710421200000,    // Mar 14, 2026 5:00 PM
+        clientTimestamp: 1710421200000,
+        status: "read",
+      },
+      unreadCount: 0,
+      updatedAt: 1710421200000,
+    },
+
+    "conv_102": {
+      id: "conv_102",
+      participants: ["user_me", "user_bob"],
+      lastMessage: {
+        id: "msg_620",
+        conversationId: "conv_102",
+        senderId: "user_bob",
+        content: "Can you review my PR?",
+        type: "text",
+        timestamp: 1710418800000,    // Mar 14, 2026 4:20 PM
+        clientTimestamp: 1710418800000,
+        status: "delivered",
+      },
+      unreadCount: 3,
+      updatedAt: 1710418800000,
+    },
+
+    "conv_103": {
+      id: "conv_103",
+      participants: ["user_me", "user_carol"],
+      lastMessage: null,              // New conversation, no messages yet
+      unreadCount: 0,
+      updatedAt: 1710410000000,
+    },
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  //  MESSAGES (powers the chat window for each conversation)
+  // ═══════════════════════════════════════════════════════════
+  messages: {
+    // Messages for the conversation with Alice (conv_101)
+    "conv_101": [
+      {
+        id: "msg_501",
+        conversationId: "conv_101",
+        senderId: "user_me",         // I sent this → RIGHT side bubble
+        content: "Hey Alice!",
+        type: "text",
+        timestamp: 1710410000000,    // Mar 14, 2026 1:53 PM
+        clientTimestamp: 1710410000000,
+        status: "read",              // ✓✓ blue
+      },
+      {
+        id: "msg_502",
+        conversationId: "conv_101",
+        senderId: "user_alice",      // Alice sent this → LEFT side bubble
+        content: "Hi! What's up?",
+        type: "text",
+        timestamp: 1710410060000,    // 1 min later
+        clientTimestamp: 1710410060000,
+        status: "read",              // (status only matters for MY messages)
+      },
+      {
+        id: "msg_503",
+        conversationId: "conv_101",
+        senderId: "user_me",
+        content: "Wanna grab dinner tonight?",
+        type: "text",
+        timestamp: 1710420000000,    // Mar 14, 2026 4:40 PM
+        clientTimestamp: 1710420000000,
+        status: "read",              // ✓✓ blue
+      },
+      {
+        id: "msg_550",
+        conversationId: "conv_101",
+        senderId: "user_alice",
+        content: "Sure, let's meet at 6!",
+        type: "text",
+        timestamp: 1710421200000,    // Mar 14, 2026 5:00 PM
+        clientTimestamp: 1710421200000,
+        status: "read",
+      },
+    ],
+
+    // Messages for the conversation with Bob (conv_102)
+    "conv_102": [
+      {
+        id: "msg_610",
+        conversationId: "conv_102",
+        senderId: "user_me",
+        content: "How's the sprint going?",
+        type: "text",
+        timestamp: 1710415000000,
+        clientTimestamp: 1710415000000,
+        status: "read",              // ✓✓ blue
+      },
+      {
+        id: "msg_615",
+        conversationId: "conv_102",
+        senderId: "user_bob",
+        content: "Almost done, just one more ticket",
+        type: "text",
+        timestamp: 1710416000000,
+        clientTimestamp: 1710416000000,
+        status: "delivered",
+      },
+      {
+        id: "msg_618",
+        conversationId: "conv_102",
+        senderId: "user_me",
+        content: "Nice, let me know if you need help",
+        type: "text",
+        timestamp: 1710417000000,
+        clientTimestamp: 1710417000000,
+        status: "delivered",         // ✓✓ gray (Bob's device got it but he hasn't opened chat)
+      },
+      {
+        id: "msg_620",
+        conversationId: "conv_102",
+        senderId: "user_bob",
+        content: "Can you review my PR?",
+        type: "text",
+        timestamp: 1710418800000,
+        clientTimestamp: 1710418800000,
+        status: "delivered",
+      },
+      // This message is still sending (I just typed it while offline)
+      {
+        id: "msg_625",
+        conversationId: "conv_102",
+        senderId: "user_me",
+        content: "Sure, sending the link?",
+        type: "text",
+        timestamp: 1710419000000,
+        clientTimestamp: 1710419000000,
+        status: "sending",           // ⏳ clock icon (waiting for server ACK)
+      },
+    ],
+
+    // conv_103 has no messages yet (Carol, new conversation)
+    "conv_103": [],
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  //  ACTIVE CONVERSATION
+  // ═══════════════════════════════════════════════════════════
+  activeConversationId: "conv_101",  // Alice's chat is currently open
+
+  // ═══════════════════════════════════════════════════════════
+  //  ONLINE STATUS (powers the green dots)
+  // ═══════════════════════════════════════════════════════════
+  onlineUsers: new Set(["user_alice", "user_carol"]),
+  //  Alice  → green dot ●  (online)
+  //  Bob    → gray dot ○   (offline -- NOT in the Set)
+  //  Carol  → green dot ●  (online)
+
+  // ═══════════════════════════════════════════════════════════
+  //  TYPING INDICATORS
+  // ═══════════════════════════════════════════════════════════
+  typingIndicators: {
+    "conv_102": ["user_bob"],     // Bob is typing in conv_102
+    // conv_101 and conv_103 have no one typing → empty/absent
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  //  CONNECTION STATUS
+  // ═══════════════════════════════════════════════════════════
+  connectionStatus: "connected",   // No banner shown (all good)
+  // If "connecting" → show "Reconnecting..." yellow banner
+  // If "disconnected" → show "No internet connection" red banner
+
+  // ═══════════════════════════════════════════════════════════
+  //  PENDING MESSAGES (offline queue)
+  // ═══════════════════════════════════════════════════════════
+  pendingMessages: [
+    // msg_625 is also here because it hasn't been ACKed yet
+    {
+      id: "msg_625",
+      conversationId: "conv_102",
+      senderId: "user_me",
+      content: "Sure, sending the link?",
+      type: "text",
+      timestamp: 1710419000000,
+      clientTimestamp: 1710419000000,
+      status: "sending",
+    },
+  ],
+};
+```
+
+### Now see exactly how this mock data renders on screen:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                                                              connected │
+│  (no banner shown because connectionStatus = "connected")              │
+│                                                                         │
+│  ┌────────────────────────────────┐  ┌──────────────────────────────┐  │
+│  │         SIDEBAR                │  │       CHAT WINDOW            │  │
+│  │                                │  │                              │  │
+│  │  [🔍 Search messages...]       │  │  ┌─ ChatHeader ───────────┐ │  │
+│  │                                │  │  │  Alice        ● Online │ │  │
+│  │  ┌─────────────────────────┐  │  │  │                         │ │  │
+│  │  │ ● Alice          5:00PM │  │  │  │  (no typing indicator   │ │  │
+│  │  │ Sure, let's meet at 6!  │  │  │  │   because conv_101 not │ │  │
+│  │  │              ← selected │  │  │  │   in typingIndicators)  │ │  │
+│  │  └─────────────────────────┘  │  │  └─────────────────────────┘ │  │
+│  │                                │  │                              │  │
+│  │  ┌─────────────────────────┐  │  │  ┌─ Messages ─────────────┐ │  │
+│  │  │ ○ Bob         ③ 4:20PM │  │  │  │                         │ │  │
+│  │  │ Can you review my PR?   │  │  │  │     Hey Alice!    1:53p │ │  │
+│  │  │  ↑ gray dot   ↑ badge  │  │  │  │              ✓✓ blue ──┤ │  │
+│  │  │  (offline)    (3 unread)│  │  │  │                    RIGHT│ │  │
+│  │  └─────────────────────────┘  │  │  │                         │ │  │
+│  │                                │  │  │ Hi! What's up?         │ │  │
+│  │  ┌─────────────────────────┐  │  │  │ LEFT ── alice sent it  │ │  │
+│  │  │ ● Carol                 │  │  │  │                         │ │  │
+│  │  │ (no messages yet)       │  │  │  │  ── Today ──────────── │ │  │
+│  │  │  ↑ green dot (online)   │  │  │  │                         │ │  │
+│  │  └─────────────────────────┘  │  │  │  Wanna grab dinner     │ │  │
+│  │                                │  │  │  tonight?       4:40PM │ │  │
+│  │  Sorted by updatedAt:         │  │  │              ✓✓ blue ──┤ │  │
+│  │  Alice (5:00) > Bob (4:20)    │  │  │                    RIGHT│ │  │
+│  │  > Carol (oldest)             │  │  │                         │ │  │
+│  │                                │  │  │ Sure, let's meet       │ │  │
+│  │                                │  │  │ at 6!          5:00PM  │ │  │
+│  │                                │  │  │ LEFT ── alice sent it  │ │  │
+│  │                                │  │  │                         │ │  │
+│  │                                │  │  └─────────────────────────┘ │  │
+│  │                                │  │                              │  │
+│  │                                │  │  ┌─ MessageInput ─────────┐ │  │
+│  │                                │  │  │ [+] Type a message...  │ │  │
+│  │                                │  │  │                 [Send] │ │  │
+│  │                                │  │  └─────────────────────────┘ │  │
+│  └────────────────────────────────┘  └──────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### If user switches to Bob's chat (activeConversationId = "conv_102"):
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                                                                      │
+│  ┌────────────────────────┐  ┌────────────────────────────────────┐  │
+│  │      SIDEBAR           │  │         CHAT WINDOW                │  │
+│  │                        │  │                                    │  │
+│  │  ● Alice       5:00PM  │  │  ┌─ ChatHeader ─────────────────┐ │  │
+│  │  Sure, let's meet...   │  │  │  Bob                ○ Offline │ │  │
+│  │                        │  │  │  Bob is typing...             │ │  │
+│  │  ○ Bob  ← now selected │  │  │  ↑ from typingIndicators     │ │  │
+│  │  Can you review my PR? │  │  │    ["conv_102"] = ["user_bob"]│ │  │
+│  │  (badge gone, viewing) │  │  └───────────────────────────────┘ │  │
+│  │                        │  │                                    │  │
+│  │  ● Carol               │  │  ┌─ Messages ───────────────────┐ │  │
+│  │                        │  │  │                               │ │  │
+│  └────────────────────────┘  │  │  How's the sprint    3:16 PM │ │  │
+│                               │  │  going?          ✓✓ blue ──┤ │  │
+│                               │  │                        RIGHT│ │  │
+│                               │  │                               │ │  │
+│                               │  │  Almost done, just     3:33 │ │  │
+│                               │  │  one more ticket             │ │  │
+│                               │  │  LEFT ── bob sent it         │ │  │
+│                               │  │                               │ │  │
+│                               │  │  Nice, let me know    3:50  │ │  │
+│                               │  │  if you need help            │ │  │
+│                               │  │              ✓✓ gray ───────┤ │  │
+│                               │  │  (delivered, not read yet)   │ │  │
+│                               │  │                        RIGHT │ │  │
+│                               │  │                               │ │  │
+│                               │  │  Can you review       4:20  │ │  │
+│                               │  │  my PR?                      │ │  │
+│                               │  │  LEFT ── bob sent it         │ │  │
+│                               │  │                               │ │  │
+│                               │  │  Sure, sending the    4:23  │ │  │
+│                               │  │  link?                       │ │  │
+│                               │  │              ⏳ clock ───────┤ │  │
+│                               │  │  (still sending / offline)   │ │  │
+│                               │  │                        RIGHT │ │  │
+│                               │  │                               │ │  │
+│                               │  └───────────────────────────────┘ │  │
+│                               │                                    │  │
+│                               │  ┌─ MessageInput ───────────────┐ │  │
+│                               │  │ [+] Type a message... [Send] │ │  │
+│                               │  └───────────────────────────────┘ │  │
+│                               └────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────┘
+
+Legend:
+  RIGHT bubble = senderId === "user_me"  (my messages, aligned right)
+  LEFT  bubble = senderId !== "user_me"  (other person's, aligned left)
+  ✓✓ blue  = status: "read"
+  ✓✓ gray  = status: "delivered"
+  ✓  gray  = status: "sent"
+  ⏳ clock = status: "sending"
+  ❌ red   = status: "failed" (+ tap to retry)
+```
+
+### If connection drops (connectionStatus = "disconnected"):
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│ ⚠️ No internet connection. Messages will be sent when you're back.   │
+│ ↑ This red/yellow banner appears because connectionStatus =          │
+│   "disconnected"                                                     │
+│                                                                      │
+│  ┌────────────────────┐  ┌────────────────────────────────────────┐  │
+│  │    SIDEBAR          │  │         CHAT WINDOW                    │  │
+│  │  (loaded from       │  │  (loaded from IndexedDB cache)         │  │
+│  │   IndexedDB cache)  │  │                                        │  │
+│  │                     │  │  Messages still visible.                │  │
+│  │  User can still     │  │  User can still type and "send."       │  │
+│  │  browse and click   │  │  Sent messages show ⏳ (queued).       │  │
+│  │  conversations.     │  │  They'll actually send on reconnect.   │  │
+│  └─────────────────────┘  └────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+### Quick mapping cheat-sheet:
+
+```
+DATA FIELD                          → WHAT THE USER SEES
+─────────────────────────────────────────────────────────────────────
+conversations["conv_101"]           → One row in the sidebar
+  .participants → ["user_alice"]    → Name "Alice" + avatar
+  .lastMessage.content              → "Sure, let's meet at 6!" preview
+  .unreadCount → 0                  → No badge
+  .unreadCount → 3                  → Blue circle with "3"
+  .updatedAt                        → Sort order (newest conversation first)
+
+messages["conv_101"]                → All bubbles in the chat window
+  [i].senderId === "user_me"        → Bubble on the RIGHT (my message)
+  [i].senderId !== "user_me"        → Bubble on the LEFT (their message)
+  [i].content                       → Text inside the bubble
+  [i].timestamp                     → "5:00 PM" next to the bubble
+  [i].status === "read"             → ✓✓ blue checkmarks
+  [i].status === "delivered"        → ✓✓ gray checkmarks
+  [i].status === "sent"             → ✓ single gray checkmark
+  [i].status === "sending"          → ⏳ clock icon
+  [i].status === "failed"           → ❌ + "Tap to retry"
+
+onlineUsers.has("user_alice")       → ● Green dot on Alice's avatar
+!onlineUsers.has("user_bob")        → ○ Gray dot on Bob's avatar
+
+typingIndicators["conv_102"]        → "Bob is typing..." in chat header
+  = ["user_bob"]                      (only visible when viewing conv_102)
+
+connectionStatus === "connected"    → No banner (everything is fine)
+connectionStatus === "connecting"   → Yellow banner: "Reconnecting..."
+connectionStatus === "disconnected" → Red banner: "No internet connection"
+
+activeConversationId === "conv_101" → Alice's chat is shown in ChatWindow
+activeConversationId === null       → "Select a chat to start messaging"
+
+pendingMessages.length > 0          → These get flushed on reconnect
+                                      (invisible to user, just ⏳ icons)
+```
+
+### Why two timestamps? (Interviewers WILL ask this)
+
+```
+Scenario: User hits Send
+                          │
+                          ▼
+           ┌──────────────────────────┐
+           │  clientTimestamp = now()  │  ← Set IMMEDIATELY by the client
+           │  Show message in UI      │    Used to display the message right away
+           │  status = 'sending'      │    (optimistic UI -- don't wait for server)
+           └────────────┬─────────────┘
+                        │ WebSocket
+                        ▼
+           ┌──────────────────────────┐
+           │  Server receives message │
+           │  timestamp = server.now()│  ← Set by the SERVER
+           │  Sends ACK back          │    This is the "real" time -- used for
+           └────────────┬─────────────┘    ordering across ALL users
+                        │
+                        ▼
+           ┌──────────────────────────┐
+           │  Client gets ACK         │
+           │  Replace clientTimestamp  │
+           │  with server timestamp   │
+           │  status = 'sent' ✓       │
+           └──────────────────────────┘
+
+Why not just client time?
+→ User A's clock is 5 min ahead. User B's is correct.
+→ A sends "Hello" at 12:05 (wrong clock), B replies "Hi" at 12:01 (correct clock).
+→ If we sort by client time: "Hi" appears BEFORE "Hello". Broken.
+→ Server timestamp = single source of truth. Both users see same order.
+```
+
+---
+
+## Step 5: Component Design (Minutes 22-27)
+
+### Component Tree (maps to the UI above)
 
 ```
 <App>
+├── <ConnectionBanner />          ← connectionStatus
+│
 ├── <Sidebar>
-│   ├── <UserProfile />           -- Current user avatar, status
-│   ├── <SearchBar />             -- Search conversations
-│   └── <ConversationList>
-│       └── <ConversationItem />  -- Avatar, name, last message preview, unread badge
+│   ├── <SearchBar />
+│   └── <ConversationList>        ← conversations, onlineUsers
+│       └── <ConversationItem />  ← conversation.lastMessage, unreadCount
 │
-├── <ChatWindow>
-│   ├── <ChatHeader />            -- Other user's name, online status, typing indicator
-│   ├── <MessageList>             -- The scrollable message area
-│   │   ├── <DateSeparator />     -- "Today", "Yesterday", "March 14"
-│   │   ├── <MessageBubble />     -- Individual message
-│   │   │   ├── <MessageContent />
-│   │   │   ├── <MessageStatus /> -- ✓ sent, ✓✓ delivered, ✓✓ (blue) read
-│   │   │   └── <MessageTime />
-│   │   └── <ScrollToBottom />    -- FAB button when scrolled up
-│   └── <MessageInput>
-│       ├── <TextArea />          -- Auto-growing input
-│       ├── <EmojiPicker />
-│       └── <SendButton />
-│
-└── <ConnectionBanner />          -- "Reconnecting..." when offline
+└── <ChatWindow>                  ← activeConversationId
+    ├── <ChatHeader />            ← participant name, onlineUsers, typingIndicators
+    ├── <MessageList>             ← messages[activeConversationId]
+    │   ├── <DateSeparator />     ← "Today", "Yesterday"
+    │   ├── <MessageBubble />     ← message.content, status, timestamp, senderId
+    │   └── <ScrollToBottom />    ← shown when user scrolled up
+    └── <MessageInput>
+        ├── <TextArea />          ← auto-growing input
+        └── <SendButton />
 ```
 
-### Key Component Decisions to Explain:
+### Key decisions to explain:
 
-> "A few important design decisions in the component structure:
->
-> **1. `<MessageList>` is the most complex component.** It handles:
-> - Rendering potentially thousands of messages efficiently (virtualization)
-> - Infinite scroll upward to load older messages
-> - Maintaining scroll position when new messages are loaded above
-> - Auto-scrolling to bottom when a new message arrives (but only if the user is already at the bottom)
->
-> **2. `<MessageBubble>` is intentionally simple.** It receives a `message` object and renders it. It doesn't manage any state. This makes it easy to memoize with `React.memo` -- since messages are immutable (once received), the component won't re-render unless the message status changes (sending → sent → delivered → read).
->
-> **3. `<ConversationList>` and `<MessageList>` should both use virtualization** because a user might have hundreds of conversations and thousands of messages. I'd use something like `react-window` or `@tanstack/virtual`."
+> **1. `<MessageBubble>` is stateless.** It receives a `message` prop and renders it. No internal state. This means I can wrap it with `React.memo` -- it only re-renders when the message's `status` changes (sending → sent → delivered → read). Since messages are mostly immutable, most bubbles never re-render.
+
+> **2. `<ConversationList>` and `<MessageList>` use virtualization.** A user might have 500 conversations and 5000 messages. I can't render all of those as DOM nodes. I'd use `@tanstack/virtual` or `react-window` to only render the ~20 items visible on screen.
+
+> **3. `<MessageList>` is the hardest component** -- it handles infinite scroll upward, auto-scroll on new messages, and scroll position preservation. I'll cover this in detail later.
 
 ### Cross-question:
 
-> **Interviewer: "How would you handle the MessageBubble for different message types -- text, image, file, reply?"**
+> **Interviewer: "How do you handle different message types -- text, image, file?"**
 
-Your answer:
-
-> "I'd use a **composition pattern** with a content renderer:
+> "I'd use a switch inside the bubble:
 >
 > ```jsx
-> function MessageBubble({ message }) {
->   return (
->     <div className={message.senderId === currentUser.id ? 'sent' : 'received'}>
->       {message.replyTo && <ReplyPreview messageId={message.replyTo} />}
->       <MessageContent message={message} />
->       <MessageMeta time={message.timestamp} status={message.status} />
->     </div>
->   );
-> }
->
 > function MessageContent({ message }) {
 >   switch (message.type) {
 >     case 'text':  return <TextContent text={message.content} />;
 >     case 'image': return <ImageContent url={message.content} />;
 >     case 'file':  return <FileContent file={message.content} />;
->     default:      return <UnsupportedContent />;
+>     default:      return <span>Unsupported message type</span>;
 >   }
 > }
 > ```
 >
-> The `default` case is important -- if the server sends a message type this client version doesn't support (say 'voice'), we gracefully show 'Unsupported message type' rather than crashing."
+> The `default` case matters -- if the server sends a type this client version doesn't know, we show a fallback instead of crashing."
 
 ---
 
-## Step 5: WebSocket Connection Management (Minutes 22-30)
+## Step 6: WebSocket Connection Management (Minutes 27-35)
 
 This is where many candidates are vague. **Go deep here.** This is the backbone of a chat app.
 
 ### What to say:
 
-> "The WebSocket connection is the most critical piece of infrastructure in this app. Let me design a robust connection manager."
+> "The WebSocket connection is the most critical piece. Let me design a robust connection manager."
 
 ### WebSocket Manager Design
 
@@ -355,69 +833,58 @@ class WebSocketManager {
   private url: string;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 10;
-  private messageQueue: OutgoingMessage[] = []; // Buffer during disconnection
+  private messageQueue: OutgoingMessage[] = [];
   private heartbeatInterval: number | null = null;
-  private listeners: Map<string, Set<Function>> = new Map();
-
-  constructor(url: string) {
-    this.url = url;
-  }
 
   connect(authToken: string) {
-    // Pass auth token as query param or in first message
     this.ws = new WebSocket(`${this.url}?token=${authToken}`);
 
     this.ws.onopen = () => {
-      this.reconnectAttempts = 0;            // Reset on successful connect
-      this.startHeartbeat();                  // Keep connection alive
-      this.flushQueue();                      // Send any queued messages
-      this.emit('connectionChange', 'connected');
+      this.reconnectAttempts = 0;    // Reset counter on success
+      this.startHeartbeat();          // Keep connection alive
+      this.flushQueue();              // Send any queued messages
+      store.setConnectionStatus('connected');
     };
 
     this.ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      this.handleMessage(data);
+      this.handleMessage(data);       // Route to correct handler
     };
 
     this.ws.onclose = (event) => {
       this.stopHeartbeat();
-      this.emit('connectionChange', 'disconnected');
-
-      // Don't reconnect if closed intentionally (code 1000)
-      if (event.code !== 1000) {
-        this.reconnect();
+      store.setConnectionStatus('disconnected');
+      if (event.code !== 1000) {      // 1000 = intentional close (logout)
+        this.reconnect();             // Unintentional → try to reconnect
       }
-    };
-
-    this.ws.onerror = () => {
-      // onerror is always followed by onclose, so reconnect logic lives there
     };
   }
 
+  // ── RECONNECTION: exponential backoff + jitter ──────────────
   private reconnect() {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      this.emit('connectionFailed', 'Max reconnection attempts reached');
-      return;
-    }
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) return;
 
-    // Exponential backoff: 1s, 2s, 4s, 8s, 16s... capped at 30s
+    //  Attempt 1 → wait 1s
+    //  Attempt 2 → wait 2s
+    //  Attempt 3 → wait 4s
+    //  Attempt 4 → wait 8s  ... up to 30s max
     const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
 
-    // Add jitter (±20%) to prevent thundering herd
+    // Add random jitter (±20%) so 10,000 users don't all retry at once
     const jitter = delay * 0.2 * (Math.random() - 0.5);
 
     this.reconnectAttempts++;
-    this.emit('connectionChange', 'connecting');
+    store.setConnectionStatus('connecting');
 
     setTimeout(() => this.connect(this.authToken), delay + jitter);
   }
 
+  // ── SENDING: queue if offline ───────────────────────────────
   send(message: OutgoingMessage) {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message));
     } else {
-      // Connection is down -- queue the message
-      this.messageQueue.push(message);
+      this.messageQueue.push(message);  // Will be sent on reconnect
     }
   }
 
@@ -428,402 +895,288 @@ class WebSocketManager {
     }
   }
 
-  // Server expects a ping every 30s, otherwise it kills the connection
+  // ── HEARTBEAT: detect silent connection death ───────────────
   private startHeartbeat() {
     this.heartbeatInterval = window.setInterval(() => {
       if (this.ws?.readyState === WebSocket.OPEN) {
         this.ws.send(JSON.stringify({ type: 'ping' }));
       }
-    }, 30000);
+    }, 30000);  // Every 30 seconds
   }
 
-  private stopHeartbeat() {
-    if (this.heartbeatInterval) {
-      clearInterval(this.heartbeatInterval);
-    }
-  }
-
+  // ── ROUTING: incoming events → state updates ────────────────
   private handleMessage(data: ServerMessage) {
     switch (data.type) {
-      case 'new_message':
-        this.emit('newMessage', data.payload);
-        break;
-      case 'message_ack':
-        // Server confirmed receipt -- update status to 'sent'
-        this.emit('messageAck', data.payload);
-        break;
-      case 'delivery_receipt':
-        this.emit('deliveryReceipt', data.payload);
-        break;
-      case 'read_receipt':
-        this.emit('readReceipt', data.payload);
-        break;
-      case 'typing':
-        this.emit('typingIndicator', data.payload);
-        break;
-      case 'presence':
-        this.emit('presenceUpdate', data.payload);
-        break;
-      case 'pong':
-        // Heartbeat response -- connection is alive
-        break;
+      case 'new_message':      store.addMessage(data.payload);         break;
+      case 'message_ack':      store.updateStatus(data.payload);       break;
+      case 'delivery_receipt': store.markDelivered(data.payload);      break;
+      case 'read_receipt':     store.markRead(data.payload);           break;
+      case 'typing':           store.setTyping(data.payload);          break;
+      case 'presence':         store.updatePresence(data.payload);     break;
+      case 'pong':             /* connection alive, nothing to do */   break;
     }
   }
 
   disconnect() {
-    this.ws?.close(1000, 'User logged out');   // 1000 = normal closure
+    this.ws?.close(1000, 'User logged out');
   }
 }
 ```
 
-### Walk the interviewer through the KEY decisions:
+### Explain the 3 key decisions:
 
-#### 1. Reconnection with Exponential Backoff + Jitter
+#### 1. Exponential Backoff + Jitter
 
-> "When the connection drops, I don't retry immediately or at fixed intervals. I use **exponential backoff** -- wait 1s, then 2s, then 4s, then 8s, up to 30s max.
->
-> I also add **jitter** (random variation). Why? Imagine 10,000 users lose connection at the same time (server restart). Without jitter, all 10,000 would try to reconnect after exactly 1 second -- a thundering herd that could crash the server again. Jitter spreads them out randomly."
+```
+Why exponential backoff?
+  → If server crashes, don't hammer it with instant retries.
+  → Wait longer each time: 1s, 2s, 4s, 8s... gives server time to recover.
 
-#### 2. Heartbeat / Keep-Alive
+Why jitter (random delay)?
+  → Imagine server restarts. 10,000 users all disconnect at the same time.
+  → Without jitter: all 10,000 retry after exactly 1 second → server crashes again.
+  → With jitter: retries spread across 0.8s-1.2s → server handles it fine.
+  → This is called the "thundering herd" problem.
+```
 
-> "WebSocket connections can silently die -- the network can drop without triggering `onclose` (especially on mobile). To detect this, I send a `ping` every 30 seconds. If the server doesn't respond with `pong` within a timeout, I consider the connection dead and trigger reconnect.
->
-> This also keeps the connection alive through proxies and load balancers that might kill idle connections."
+#### 2. Heartbeat (Ping/Pong)
 
-#### 3. Message Queue During Disconnection
+> "WebSocket connections can **silently die** -- the network drops but `onclose` never fires (common on mobile, WiFi switches). The heartbeat detects this: if we send `ping` and don't get `pong` within 5 seconds, we assume the connection is dead and trigger reconnect."
 
-> "When the WebSocket is down, calls to `send()` don't throw an error -- they queue the message. When the connection is restored, `flushQueue()` sends all pending messages in order. This gives the user a seamless experience -- they can keep typing and sending even during brief disconnections."
+#### 3. Message Queue
 
-#### 4. Connection State in UI
-
-> "I expose the connection state (`connected`, `connecting`, `disconnected`) to the UI. When disconnected, I show a banner: 'Reconnecting...' with a subtle animation. This manages user expectations."
+> "When WebSocket is down, `send()` doesn't throw an error -- it silently queues the message. When connection restores, `flushQueue()` sends everything in order. The user never knows the connection briefly dropped."
 
 ### Cross-questions:
 
 > **Interviewer: "What happens if the user has the app open in two tabs?"**
 
-> "Each tab would open its own WebSocket connection. This is fine from the server's perspective -- it just needs to deliver messages to all active connections for that user.
->
-> But on the client, I need to be careful about **notifications**. I don't want both tabs showing a notification for the same message. Options:
-> 1. Use the **Broadcast Channel API** to coordinate between tabs. One tab becomes the 'leader' and handles notifications.
-> 2. Or, use a **Shared Worker** to maintain a single WebSocket connection shared across all tabs.
->
-> For simplicity, I'd start with option 1. The leader tab shows notifications; other tabs just update their UI."
+> "Each tab opens its own WebSocket. Both receive messages, both update their UI. For notifications, I'd use the **Broadcast Channel API** to coordinate between tabs -- one tab becomes the 'leader' and handles notifications so you don't get duplicates."
 
 > **Interviewer: "How do you handle authentication with WebSocket?"**
 
-> "WebSocket doesn't support custom headers in the initial handshake (browser limitation). So I have two options:
+> "WebSocket doesn't support custom headers in the browser. Two options:
+> 1. **Query param**: `ws://server.com?token=xyz` -- simple but token shows in logs
+> 2. **First message auth**: Open connection, send `{type: 'auth', token: 'xyz'}`, server rejects all other messages until auth succeeds
 >
-> 1. **Pass the token as a query parameter**: `ws://server.com?token=xyz`. Simple but the token appears in server logs and URL. Use short-lived tokens.
-> 2. **Authenticate in the first message**: Open the connection, then send an `{type: 'auth', token: 'xyz'}` message. The server doesn't accept other messages until auth succeeds.
->
-> Option 2 is more secure. I'd use that."
+> I'd go with option 2 -- more secure."
 
 ---
 
-## Step 6: Message Ordering & Delivery Receipts (Minutes 30-37)
+## Step 7: Message Ordering & Delivery Receipts (Minutes 35-42)
 
-### The Message Lifecycle
-
-> "Let me walk through the complete lifecycle of a message, from send to read."
+### The Message Lifecycle (the MOST important diagram in this whole design)
 
 ```
-USER A (Sender)                          SERVER                          USER B (Receiver)
-     │                                      │                                  │
-     │  1. User presses Send                │                                  │
-     │  ── Show message with status ──►     │                                  │
-     │     'sending' (gray clock icon)      │                                  │
-     │                                      │                                  │
-     │  2. Send via WebSocket ─────────►    │                                  │
-     │     {type:'send_message',            │                                  │
-     │      id:'abc', content:'Hi'}         │                                  │
-     │                                      │  3. Server persists message      │
-     │                                      │     Assigns server timestamp     │
-     │                                      │                                  │
-     │  4. Server ACKs ◄───────────────     │  5. Server forwards ──────────►  │
-     │     {type:'message_ack',             │     {type:'new_message',         │
-     │      id:'abc', status:'sent',        │      message: {...}}             │
-     │      timestamp: 1710400000}          │                                  │
-     │                                      │                                  │
-     │  ── Update to 'sent' ──►             │                                  │
-     │     (single gray check ✓)            │                                  │
-     │                                      │                                  │
-     │                                      │  6. Client B receives message    │
-     │                                      │     Shows in chat, sends ACK ──► │
-     │                                      │     {type:'delivery_ack',        │
-     │                                      │      messageId:'abc'}            │
-     │                                      │                                  │
-     │  7. Delivery receipt ◄──────────     │  ◄───────────────────────────     │
-     │     {type:'delivery_receipt',        │                                  │
-     │      messageId:'abc'}                │                                  │
-     │                                      │                                  │
-     │  ── Update to 'delivered' ──►        │                                  │
-     │     (double gray check ✓✓)           │                                  │
-     │                                      │                                  │
-     │                                      │  8. User B opens/views the       │
-     │                                      │     conversation, sends ─────►   │
-     │                                      │     {type:'read_ack',            │
-     │                                      │      conversationId:'xyz',       │
-     │                                      │      lastReadMessageId:'abc'}    │
-     │                                      │                                  │
-     │  9. Read receipt ◄──────────────     │  ◄───────────────────────────     │
-     │     {type:'read_receipt',            │                                  │
-     │      conversationId:'xyz',           │                                  │
-     │      lastReadMessageId:'abc'}        │                                  │
-     │                                      │                                  │
-     │  ── Update to 'read' ──►             │                                  │
-     │     (double blue check ✓✓)           │                                  │
+USER A (Sender)                    SERVER                     USER B (Receiver)
+     │                                │                              │
+     │  1. User presses Send          │                              │
+     │  Show in UI immediately        │                              │
+     │  status = 'sending' ⏳         │                              │
+     │                                │                              │
+     │  2. Send via WebSocket ──────► │                              │
+     │     {id:'abc', content:'Hi'}   │                              │
+     │                                │ 3. Save to DB                │
+     │                                │    Assign server timestamp   │
+     │                                │                              │
+     │  4. ACK ◄───────────────────── │ 5. Forward ──────────────►   │
+     │     {id:'abc',                 │    {message: {...}}          │
+     │      status:'sent',            │                              │
+     │      timestamp: 171040000}     │                              │
+     │                                │                              │
+     │  Update to 'sent' ✓            │                              │
+     │                                │                              │
+     │                                │  6. B's client receives it   │
+     │                                │     Shows in chat            │
+     │                                │     Sends delivery ACK ──►   │
+     │                                │                              │
+     │  7. ◄────────────────────────  │  ◄───────────────────────    │
+     │     delivery_receipt           │                              │
+     │     Update to 'delivered' ✓✓   │                              │
+     │                                │                              │
+     │                                │  8. User B OPENS the chat    │
+     │                                │     Sends read ACK ────────► │
+     │                                │                              │
+     │  9. ◄────────────────────────  │  ◄───────────────────────    │
+     │     read_receipt               │                              │
+     │     Update to 'read' ✓✓ blue  │                              │
 ```
 
-### Message Ordering: The Hard Problem
-
-> "Message ordering seems simple but has subtle edge cases."
-
-#### Problem: Why can't we just sort by timestamp?
-
-> "Consider this scenario:
-> - User A sends 'Hello' at 12:00:01
-> - User B sends 'Hi' at 12:00:02
-> - Due to network latency, the server receives B's message first
->
-> If I sort by **client timestamp**, the order is correct on each client but might differ between them (clock skew). If I sort by **server timestamp**, both clients see the same order, but it might not match what users expect.
->
-> **My approach:** Use server timestamp as the **canonical order**. But within a single sender's messages, also preserve **client-side order** (messages from the same sender should never appear out of sequence relative to each other, since the sender knows their own order)."
-
-#### Implementation:
-
-```typescript
-function insertMessageInOrder(messages: Message[], newMessage: Message): Message[] {
-  // Binary search for insert position based on server timestamp
-  let low = 0, high = messages.length;
-
-  while (low < high) {
-    const mid = Math.floor((low + high) / 2);
-    if (messages[mid].timestamp <= newMessage.timestamp) {
-      low = mid + 1;
-    } else {
-      high = mid;
-    }
-  }
-
-  // Insert at the correct position
-  const result = [...messages];
-  result.splice(low, 0, newMessage);
-  return result;
-}
-```
-
-> "I use **binary search** for insertion rather than appending and re-sorting, because the common case is that new messages have the latest timestamp (so they go at the end in O(1)), and out-of-order messages are rare. Binary search is O(log n) for the rare case."
-
-### Optimistic UI for Sending
+### Optimistic UI: Show First, Confirm Later
 
 ```typescript
 function sendMessage(content: string) {
-  const optimisticMessage: Message = {
-    id: generateUUID(),           // Client-generated
-    conversationId: activeConversation.id,
+  const message: Message = {
+    id: generateUUID(),              // Client generates the ID
+    conversationId: activeConversationId,
     senderId: currentUser.id,
     content,
     type: 'text',
-    timestamp: Date.now(),         // Temporary, will be replaced by server
+    timestamp: Date.now(),           // Temporary -- replaced by server
     clientTimestamp: Date.now(),
-    status: 'sending',
+    status: 'sending',               // ⏳
   };
 
-  // 1. Immediately add to UI (optimistic)
-  addMessage(optimisticMessage);
+  // 1. Show immediately in UI (don't wait for server)
+  store.addMessage(message);
 
   // 2. Send via WebSocket
-  wsManager.send({
-    type: 'send_message',
-    payload: optimisticMessage,
-  });
+  wsManager.send({ type: 'send_message', payload: message });
 
-  // 3. Set a timeout for failure detection
+  // 3. If server doesn't ACK within 10 seconds → mark as failed
   setTimeout(() => {
-    const msg = getMessageById(optimisticMessage.id);
-    if (msg?.status === 'sending') {
-      // Server didn't ACK in time -- mark as failed
-      updateMessageStatus(optimisticMessage.id, 'failed');
+    if (store.getMessageStatus(message.id) === 'sending') {
+      store.updateStatus(message.id, 'failed');   // Show ❌ + Retry button
     }
-  }, 10000); // 10 second timeout
-}
-
-// When server ACKs:
-function handleMessageAck(ack: { id: string; timestamp: number }) {
-  updateMessage(ack.id, {
-    timestamp: ack.timestamp,    // Replace with server timestamp
-    status: 'sent',
-  });
+  }, 10000);
 }
 ```
 
-### Read Receipts: Efficient Implementation
+> "The user sees their message **instantly**. We don't wait for the server round-trip. If the server confirms (ACK), we update the checkmark. If it doesn't confirm within 10 seconds, we show a retry button. This pattern is called **optimistic UI**."
 
-> "I don't send a read receipt for every individual message. That would be noisy -- if User B opens a conversation with 50 unread messages, I don't want 50 WebSocket events.
+### Message Ordering: Why It's Tricky
+
+> "I use server timestamp as the canonical order. But insertion needs to be efficient:
 >
-> Instead, I send a **single read receipt with the last read message ID**. The server then marks all messages up to that ID as read. This is a **watermark pattern**."
+> Most of the time, new messages have the latest timestamp and go at the end of the array (common case, O(1)).
+>
+> Occasionally, a delayed message arrives out of order. For that, I use binary search to find the correct insertion position (rare case, O(log n))."
+
+### Read Receipts: The Watermark Pattern
+
+> "I don't send a read receipt per message. If User B opens a chat with 50 unread messages, I don't fire 50 events. Instead, I send **one** event: `{lastReadMessageId: 'abc'}`. All messages up to that ID are considered read. This is called the **watermark pattern** -- like a water level that rises."
 
 ```typescript
 function markConversationAsRead(conversationId: string) {
-  const messages = getMessages(conversationId);
+  const messages = store.getMessages(conversationId);
   const lastMessage = messages[messages.length - 1];
 
   if (lastMessage && lastMessage.senderId !== currentUser.id) {
     wsManager.send({
       type: 'read_ack',
-      payload: {
-        conversationId,
-        lastReadMessageId: lastMessage.id,
-      },
+      payload: { conversationId, lastReadMessageId: lastMessage.id },
     });
   }
 }
-```
 
-> "I trigger this when:
-> - The user switches to a conversation (clicks on it)
-> - The user is already in a conversation and a new message arrives AND the tab is visible (use the **Page Visibility API** to check -- don't mark as read if the tab is in background)"
+// Triggered when:
+// 1. User clicks on a conversation (switches to it)
+// 2. New message arrives AND tab is visible (check with Page Visibility API)
+// NOT triggered when tab is in background (don't lie about reading)
+```
 
 ### Cross-questions:
 
-> **Interviewer: "What if a message fails to send? How does the user retry?"**
+> **Interviewer: "What if a message fails? How does the user retry?"**
 
-> "Failed messages show a red exclamation icon with a 'Retry' button. On tap:
->
+> "Failed messages show ❌ with a 'Tap to retry' button. On retry:
 > 1. Reset status to `'sending'`
-> 2. Re-send via WebSocket (same message ID, so the server can deduplicate)
-> 3. Reset the timeout
->
-> The message keeps its original position in the chat (based on `clientTimestamp`) so it doesn't jump around. Using the **same message ID** is key -- if the original actually did reach the server but the ACK was lost, the server sees the duplicate ID and just re-sends the ACK instead of creating a duplicate message. This is called **idempotent message sending**."
+> 2. Re-send via WebSocket **with the same message ID**
+> 3. Why same ID? If the original DID reach the server but the ACK was lost, the server sees the duplicate ID and just re-sends the ACK instead of creating a duplicate message. This is **idempotent sending**."
 
-> **Interviewer: "How do you handle the typing indicator?"**
+> **Interviewer: "What about the typing indicator?"**
 
-> "Typing indicators are fire-and-forget -- they don't need delivery guarantees. I send a `{type: 'typing', conversationId: 'xyz'}` event via WebSocket when the user types.
->
-> Key details:
-> - **Throttle** the typing event to at most once every 2-3 seconds (don't send on every keystroke)
-> - The receiving client shows 'typing...' and sets a **timeout of ~4 seconds**. If no new typing event arrives, clear the indicator. This handles the case where the user stopped typing but we didn't get a 'stopped_typing' event (unreliable network).
-> - Don't persist typing indicators to any database -- they're purely ephemeral, in-memory state."
+> "Typing indicators are simple and lossy (by design):
+> - **Sender side**: Throttle to 1 event every 3 seconds (not every keystroke)
+> - **Receiver side**: Show 'typing...' and auto-clear after 4 seconds of no new event
+> - Never persisted anywhere -- purely in-memory, ephemeral"
 
 ---
 
-## Step 7: Offline Message Queue (Minutes 37-42)
+## Step 8: Offline Message Queue (Minutes 42-47)
 
 ### What to say:
 
-> "For a chat app, offline support isn't optional -- users expect to be able to write messages on the subway and have them send when they're back online. Let me explain my approach."
+> "Users expect to type messages on the subway and have them send when they're back online."
 
-### Architecture
+### How it works (simple flow):
 
 ```
-User sends message while offline
+User hits Send while offline
         │
         ▼
-┌─────────────────────────────┐
-│  WebSocket is disconnected  │
-│  send() queues message      │
-│  in wsManager.messageQueue  │
-└─────────────┬───────────────┘
-              │
-              ▼
-┌─────────────────────────────┐
-│  Also persist to IndexedDB  │  ◄── Survives tab close / browser crash
-│  (pending_messages store)   │
-└─────────────┬───────────────┘
-              │
-              ▼
-┌─────────────────────────────┐
-│  UI shows message with      │
-│  status: 'sending'          │
-│  (gray clock icon)          │
-└─────────────────────────────┘
-
-... time passes, connection is restored ...
-
-┌─────────────────────────────┐
-│  WebSocket reconnects       │
-│  onopen fires               │
-└─────────────┬───────────────┘
-              │
-              ▼
-┌─────────────────────────────┐
-│  flushQueue():              │
-│  - Read pending from        │
-│    IndexedDB                │
-│  - Send each in order       │
-│  - Remove from IndexedDB    │
-│    as each is ACKed         │
-└─────────────────────────────┘
+  WebSocket is down
+  → send() queues message in memory
+  → ALSO persist to IndexedDB        ← survives tab close / browser crash
+  → UI shows message with ⏳ status
+        │
+   ... time passes ...
+        │
+  Connection restored
+  → WebSocket reconnects
+  → flushQueue(): send all pending messages in order
+  → Remove from IndexedDB as each is ACKed by server
+  → UI updates ⏳ → ✓
 ```
 
-### Why IndexedDB and Not localStorage?
+### Why IndexedDB, not localStorage?
 
-> "**localStorage** is synchronous and blocks the main thread, has a 5-10 MB limit, and can only store strings. For a chat app with potentially many queued messages and cached conversation data, those are dealbreakers.
->
-> **IndexedDB** is asynchronous, supports structured data (no JSON.stringify needed), has much larger storage limits (~50MB+ depending on browser), and supports indexes for efficient querying. It's the right tool for offline data in a chat app."
+| | localStorage | IndexedDB |
+|--|-------------|-----------|
+| Sync/Async | **Synchronous** (blocks main thread) | **Async** (non-blocking) |
+| Storage limit | 5-10 MB | 50+ MB |
+| Data format | Strings only (must JSON.stringify everything) | Structured data natively |
+| Queryable | No (key-value only) | Yes (indexes, ranges) |
+| **Verdict** | Fine for settings/preferences | **Right tool for chat data** |
 
-### What Gets Cached Offline
+### What gets cached offline:
 
 ```
-IndexedDB Database: 'chat_app'
-├── Store: 'messages'          -- Recent messages per conversation (last 50)
-│   Index: by conversationId
-│   Index: by timestamp
-├── Store: 'conversations'     -- All conversation metadata
-├── Store: 'pending_messages'  -- Messages queued for sending
-│   Index: by conversationId
-│   Index: by clientTimestamp
-└── Store: 'user_data'         -- Current user profile, settings
+IndexedDB: 'chat_app_db'
+├── conversations     → Last 20 conversations (metadata)
+├── messages          → Last 50 messages per conversation
+├── pending_messages  → Unsent messages (the offline queue)
+└── user_data         → Current user profile, settings
 ```
 
-> "When the user opens the app offline (or before the WebSocket connects), they see:
-> - Their conversation list (from cached `conversations`)
-> - The last 50 messages of each conversation (from cached `messages`)
-> - Any pending messages they'd sent earlier (from `pending_messages`)
->
-> This means the app loads instantly, even on slow connections -- we show cached data first, then sync in the background."
+> "When the user opens the app on a slow connection, they immediately see cached conversations and messages from IndexedDB. Then WebSocket connects in the background and syncs new data. The app feels instant."
 
-### Handling Conflicts on Reconnect
+### What happens on reconnect:
 
-> "When we come back online, there might be messages that arrived while we were offline (sent by other users to us). The server would have queued these. On reconnect:
+> "Order matters: **receive first, then send**.
+> 1. Send a `sync` event with the timestamp of the last message we received
+> 2. Server sends back all messages we missed while offline
+> 3. Merge those into our local state
+> 4. THEN flush our pending outgoing messages
 >
-> 1. We send a `{type: 'sync', lastReceivedTimestamp: 1710400000}` event
-> 2. The server sends all messages we missed since that timestamp
-> 3. We merge them into our local state and IndexedDB cache
-> 4. We also flush our pending outgoing messages
->
-> The order of operations matters: **receive first, then send**. This way, our pending messages get the correct server timestamps relative to messages we missed."
+> Why this order? So our pending messages get server timestamps that come after the messages we missed. Keeps the ordering correct."
 
 ### Cross-question:
 
-> **Interviewer: "What if the user sends a message offline, closes the browser, and reopens it later?"**
+> **Interviewer: "What if the user sends messages offline, closes the browser, and opens it next day?"**
 
-> "This is exactly why I persist the pending queue to IndexedDB, not just in-memory. On app startup:
->
+> "The pending queue is in IndexedDB, not just memory. On app startup:
 > 1. Read `pending_messages` from IndexedDB
-> 2. Show them in the UI with `status: 'sending'`
-> 3. When WebSocket connects, flush them to the server
-> 4. Remove from IndexedDB as they're ACKed
+> 2. Show them in UI with ⏳ status
+> 3. When WebSocket connects, flush them
+> 4. Remove from IndexedDB as each is ACKed
 >
-> If the app was a PWA with a Service Worker, the Service Worker could even attempt to send messages via the **Background Sync API** -- the browser would retry sending even if the user has closed the tab. But that's a progressive enhancement, not a requirement."
+> The messages survive browser restarts because IndexedDB persists to disk."
 
 ---
 
-## Step 8: Scroll Position & Infinite Scroll Up (Minutes 42-48)
+## Step 9: Scroll Position & Infinite Scroll Up (Minutes 47-53)
 
-### The Problem
+### The 3 Scroll Challenges:
 
-> "Message lists have one of the trickiest scrolling behaviors in all of frontend development. Let me break down the challenges:
->
-> 1. **New messages should auto-scroll to bottom** -- but only if the user is already at the bottom
-> 2. **If the user scrolled up to read older messages**, a new message should NOT yank them down
-> 3. **Loading older messages (scroll up)** should NOT change the visible scroll position -- the user should stay looking at the same message
-> 4. **The list could have thousands of messages** -- we need virtualization"
+```
+Challenge 1: Auto-scroll on new message
+  → New message arrives while user is at the bottom → scroll down to show it
+  → New message arrives while user scrolled UP reading old messages → DON'T scroll
+    (show "↓ 3 new messages" button instead)
 
-### Solution: Break it Into Parts
+Challenge 2: Load older messages on scroll up
+  → User scrolls to top → fetch older messages from API → prepend them
+  → BUT: adding content above current scroll position would push everything down
+    → user loses their place → BAD UX
+  → Need to RESTORE scroll position after prepending
 
-#### Part 1: Auto-scroll vs Stay-in-place
+Challenge 3: Performance
+  → Conversation has 10,000 messages → can't render 10,000 DOM nodes
+  → Use virtualization → only render ~20-30 visible messages
+```
+
+### Solution: Part 1 -- Auto-scroll vs Stay-in-place
 
 ```typescript
 function MessageList({ conversationId }) {
@@ -831,17 +1184,15 @@ function MessageList({ conversationId }) {
   const [isNearBottom, setIsNearBottom] = useState(true);
   const messages = useMessages(conversationId);
 
-  // Track if user is near bottom
+  // Track: is the user near the bottom?
   const handleScroll = useCallback(() => {
     const el = containerRef.current;
     if (!el) return;
-
-    const threshold = 100; // px from bottom
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    setIsNearBottom(distanceFromBottom < threshold);
+    setIsNearBottom(distanceFromBottom < 100);  // within 100px = "near bottom"
   }, []);
 
-  // Auto-scroll to bottom when new message arrives (only if already near bottom)
+  // When new message arrives: auto-scroll only if already near bottom
   useEffect(() => {
     if (isNearBottom) {
       containerRef.current?.scrollTo({
@@ -852,422 +1203,223 @@ function MessageList({ conversationId }) {
   }, [messages.length, isNearBottom]);
 
   return (
-    <div ref={containerRef} onScroll={handleScroll} className="message-list">
+    <div ref={containerRef} onScroll={handleScroll}>
       {messages.map(msg => <MessageBubble key={msg.id} message={msg} />)}
-      {!isNearBottom && <ScrollToBottomFAB onClick={scrollToBottom} />}
+
+      {/* Floating button when user is scrolled up */}
+      {!isNearBottom && (
+        <button className="scroll-to-bottom-fab" onClick={scrollToBottom}>
+          ↓ 3 new messages
+        </button>
+      )}
     </div>
   );
 }
 ```
 
-> "The key insight is the `isNearBottom` flag. I check if the user is within 100px of the bottom. If yes, new messages auto-scroll. If no, I show a floating 'scroll to bottom' button with an unread count badge -- just like WhatsApp."
+> "The `isNearBottom` flag is the key. WhatsApp, Slack, Telegram -- they all use this exact pattern."
 
-#### Part 2: Infinite Scroll Upward (Load Older Messages)
+### Solution: Part 2 -- Infinite Scroll Up (the tricky one)
 
-> "This is the tricky part. When the user scrolls to the top, I fetch older messages. But inserting content above the current scroll position would push everything down, making the user lose their place."
+```
+Problem visualization:
+
+  BEFORE loading older messages:       AFTER loading older messages:
+  ┌────────────────────┐               ┌────────────────────┐
+  │ Message 21         │ ← visible     │ Message 1          │ ← NEW (loaded)
+  │ Message 22         │ ← visible     │ Message 2          │ ← NEW (loaded)
+  │ Message 23         │ ← visible     │ ...                │
+  │ Message 24         │ ← visible     │ Message 20         │ ← NEW (loaded)
+  │ Message 25         │ ← visible     │ Message 21         │ ← was visible
+  └────────────────────┘               │ Message 22         │ ← was visible
+                                       │ ...                │
+  User is looking at 21-25.            │ Message 25         │
+  After prepending, the viewport       └────────────────────┘
+  still shows messages 1-5 (top        User is now looking at 1-5!
+  of the container). Message 21        Message 21 got pushed way down.
+  got pushed down. User lost           
+  their place!                         THE FIX: After prepending, set
+                                       scrollTop = newScrollHeight - oldScrollHeight
+                                       This "pushes" the viewport back down
+                                       to where message 21 is.
+```
 
 ```typescript
-function useInfiniteScrollUp(containerRef, conversationId) {
-  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
+async function loadOlderMessages() {
+  const el = containerRef.current;
+  const previousScrollHeight = el.scrollHeight;         // Save BEFORE
 
-  const loadOlderMessages = useCallback(async () => {
-    if (isLoadingOlder || !hasMore) return;
+  const olderMessages = await api.getMessages(conversationId, {
+    before: messages[0].timestamp,   // "give me messages older than my oldest"
+    limit: 30,
+  });
 
-    setIsLoadingOlder(true);
+  store.prependMessages(conversationId, olderMessages); // Add to state
 
-    const el = containerRef.current;
-    const previousScrollHeight = el.scrollHeight;
-
-    // Fetch older messages (before the oldest message we have)
-    const oldestMessage = messages[0];
-    const olderMessages = await api.getMessages(conversationId, {
-      before: oldestMessage.timestamp,
-      limit: 30,
-    });
-
-    if (olderMessages.length < 30) {
-      setHasMore(false); // No more history
-    }
-
-    // Prepend to state
-    prependMessages(conversationId, olderMessages);
-
-    // CRITICAL: Restore scroll position after DOM update
-    // New content was added above, so scrollHeight increased.
-    // To keep the same messages visible, adjust scrollTop by the difference.
-    requestAnimationFrame(() => {
-      const newScrollHeight = el.scrollHeight;
-      el.scrollTop = newScrollHeight - previousScrollHeight;
-    });
-
-    setIsLoadingOlder(false);
-  }, [conversationId, isLoadingOlder, hasMore, messages]);
-
-  // Trigger load when scrolled to top
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          loadOlderMessages();
-        }
-      },
-      { root: el, threshold: 0.1 }
-    );
-
-    // Observe a sentinel element at the top of the list
-    const sentinel = el.querySelector('.scroll-sentinel-top');
-    if (sentinel) observer.observe(sentinel);
-
-    return () => observer.disconnect();
-  }, [loadOlderMessages]);
+  // CRITICAL: Restore scroll position
+  requestAnimationFrame(() => {
+    const newScrollHeight = el.scrollHeight;             // Measure AFTER
+    el.scrollTop = newScrollHeight - previousScrollHeight;  // Adjust
+  });
 }
 ```
 
-> "The critical line is the scroll position restoration:
->
-> ```
-> el.scrollTop = newScrollHeight - previousScrollHeight;
-> ```
->
-> Before loading, I save `scrollHeight`. After new messages are prepended, `scrollHeight` increases. I set `scrollTop` to the difference, which keeps the user looking at exactly the same message they were looking at. I do this in a `requestAnimationFrame` to ensure the DOM has updated."
+> "The scroll restoration formula: `scrollTop = newScrollHeight - oldScrollHeight`. Before prepending, the container was 5000px tall. After, it's 8000px (3000px of new content above). I set scrollTop to 3000, which puts the viewport exactly where it was before."
 
-#### Part 3: Virtualization for Performance
+### Solution: Part 3 -- Triggering the load
 
-> "If a conversation has 10,000 messages, we can't render all 10,000 DOM nodes. The browser would freeze. I'd use **virtualization** -- only render the ~20-30 messages visible in the viewport, plus a small buffer above and below.
->
-> For this, I'd use a library like `react-window` or `@tanstack/virtual`. The tricky part with virtualization in a chat app is that **message heights vary** (some are one line, some are paragraphs, some have images). So I'd use a **dynamic-height virtualizer** that measures items after render.
->
-> `@tanstack/virtual` handles this well with its `measureElement` callback."
+> "I use an **IntersectionObserver** on a hidden sentinel element at the top of the list. When the sentinel enters the viewport (user scrolled to the top), it triggers `loadOlderMessages()`. This is more efficient than listening to scroll events."
 
 ### Cross-questions:
 
-> **Interviewer: "What if the user scrolls up, loads older messages, and a new message arrives at the bottom?"**
+> **Interviewer: "What if the user scrolls up AND a new message arrives at the bottom?"**
 
-> "Since `isNearBottom` is false (user scrolled up), I don't auto-scroll. Instead:
-> 1. I add the new message to the bottom of the messages array (state update)
-> 2. I increment the 'new messages' count on the floating scroll-to-bottom button
-> 3. The button shows something like '↓ 3 new messages'
-> 4. When the user clicks it, I smooth-scroll to the bottom and reset the count
->
-> This is exactly what WhatsApp and Slack do."
+> "`isNearBottom` is false, so I don't auto-scroll. Instead:
+> 1. New message is added to state (appended at the bottom)
+> 2. The floating button counter increments: '↓ 3 new messages'
+> 3. User clicks it → smooth scroll to bottom, counter resets"
 
-> **Interviewer: "How would you handle jumping to a specific message? Like when someone clicks on a message in search results."**
+> **Interviewer: "How would you handle 'jump to message' from search results?"**
 
-> "This is called **scroll-to-index** or **anchor scrolling**. Steps:
-> 1. If the message is already loaded in memory, find its index and use the virtualizer's `scrollToIndex()` method
-> 2. If it's not loaded (very old message), I need to fetch messages around that timestamp from the API, load them into state, then scroll to the target
-> 3. After scrolling, briefly **highlight** the target message (yellow flash animation) so the user knows which one it is
->
-> This is one of the harder features to implement well with virtualization, because you may need to jump to an arbitrary position in a list of unknown total length."
+> "If the message is already in memory, I find its index and scroll to it. If it's not loaded (very old), I fetch messages around that timestamp from the API, load them, then scroll. Either way, I briefly **highlight** the target message with a yellow flash so the user spots it."
 
 ---
 
-## Step 9: Polish & Tradeoffs (Minutes 48-55)
+## Step 10: Wrap-Up & Tradeoffs (Minutes 53-58)
 
-### Mention These Unprompted (They Impress Interviewers)
+### Tradeoffs Summary (mention this at the end)
 
-#### 1. Accessibility
-> "For the chat app to be accessible:
-> - The message input has proper `aria-label`
-> - New messages are announced to screen readers using an `aria-live='polite'` region
-> - The conversation list and messages are navigable with keyboard (arrow keys + Enter)
-> - The 'X new messages' button is focusable and announced
-> - Color contrast for read/unread indicators meets WCAG AA"
-
-#### 2. Security
-> "Messages should be sanitized before rendering to prevent XSS. If I'm rendering HTML content (e.g., links), I use a sanitizer like DOMPurify. Ideally, messages are plain text rendered in a text node, not `innerHTML`.
->
-> For sensitive chats, we could implement **end-to-end encryption** on the client using the Web Crypto API (Signal Protocol). But that's a significant scope increase."
-
-#### 3. Performance Budget
-> - "Initial load: < 200KB JS (code-split the emoji picker, settings, etc.)"
-> - "Message render: < 16ms per frame (60fps scrolling)"
-> - "Time to first message visible: < 2s (use cached data from IndexedDB)"
-
-#### 4. Monitoring
-> "In production, I'd track:
-> - WebSocket connection drops and reconnection frequency
-> - Message delivery latency (time from send to ACK)
-> - Failed message rate
-> - Client-side JS errors (Sentry)
-> - Core Web Vitals (LCP, INP, CLS)"
-
-### Tradeoffs Summary
-
-| Decision | Choice | Alternative | Why I Chose This |
-|----------|--------|-------------|------------------|
-| Real-time transport | WebSocket | SSE + REST | Bidirectional, low overhead for chat |
-| State management | Zustand | Redux, Context | Lightweight, selector-based re-renders |
-| Offline storage | IndexedDB | localStorage | Async, larger storage, structured data |
-| Message ordering | Server timestamp | Client timestamp | Consistent ordering across all clients |
+| Decision | What I Chose | What I Didn't | Why |
+|----------|-------------|---------------|-----|
+| Real-time | WebSocket | SSE, long polling | Bidirectional, low overhead |
+| State | Zustand | Redux, Context | Lightweight selectors, less boilerplate |
+| Offline storage | IndexedDB | localStorage | Async, structured data, 50MB+ |
+| Message ordering | Server timestamp | Client timestamp | Consistent across all users |
+| Message IDs | Client-generated UUID | Server-assigned | Enables optimistic UI + idempotent retries |
 | Virtualization | @tanstack/virtual | react-window | Better dynamic height support |
-| ID generation | Client UUID | Server-assigned | Enables optimistic UI, idempotent retries |
+
+### "If I had more time, I'd also consider..."
+
+(Say 2-3 of these to show breadth. Don't go deep -- just name-drop.)
+
+- **Accessibility**: `aria-live` region for new messages, keyboard navigation in conversation list
+- **Error handling**: Error boundaries around MessageList, graceful fallbacks
+- **Media messages**: Upload to S3 → get URL → send URL as message
+- **Push notifications**: Service Worker + Push API for when tab is closed
+- **End-to-end encryption**: Web Crypto API, but massive scope increase
 
 ---
 
 ## Cross Questions Bank (with Answers)
 
-Here are **25 cross-questions** interviewers commonly ask, grouped by topic. Each has a concise answer.
-
-### Architecture
+### Extending the Design
 
 **Q1: "How would you extend this to group chat?"**
-> "Two key changes:
-> 1. Data model: `Conversation` gets `type: 'group' | 'direct'` and the `participants` array can have N members
-> 2. Read receipts become more complex -- I need to track read status per participant. Instead of double-blue-check, I might show '3 of 8 read' or show individual avatars like WhatsApp groups
-> 3. Typing indicators show who is typing: 'Alice is typing...' or 'Alice and Bob are typing...'
+> "Three changes:
+> 1. `Conversation` gets `type: 'group' | 'direct'`, participants array has N members
+> 2. Read receipts: instead of blue checks, show '3 of 8 read' or individual read avatars
+> 3. Typing indicators: 'Alice is typing...' or 'Alice and 2 others...'
 >
-> The WebSocket message format stays the same -- the server handles fan-out to all group members."
+> WebSocket format stays the same -- server handles fan-out to all group members."
 
-**Q2: "How would you add message reactions (emoji reactions like Slack)?"**
-> "Add a `reactions` field to the Message model: `Record<string, string[]>` (emoji → [userIds]). Clicking a reaction sends a WebSocket event `{type: 'reaction', messageId, emoji}`. The server broadcasts to all participants. On the UI, I show reaction pills below the message bubble with counts."
+**Q2: "How would you add emoji reactions like Slack?"**
+> "Add `reactions: Record<string, string[]>` (emoji → userIds) to Message. Click sends `{type: 'reaction', messageId, emoji}` via WebSocket. Show reaction pills below the bubble."
 
-**Q3: "What if the server goes down completely? What does the user experience?"**
-> "The WebSocket closes, triggering reconnection attempts with exponential backoff. The UI shows 'Connecting...' banner. The user can still:
-> - Read all cached conversations and messages (from IndexedDB)
-> - Type and send messages (queued locally)
-> - Browse the app normally
->
-> When the server comes back, everything syncs. The user might see brief reordering as server timestamps are assigned."
+**Q3: "What if the server goes down?"**
+> "WebSocket closes → reconnection attempts with backoff. User sees 'Connecting...' banner. They can still browse cached conversations and send messages (queued). Everything syncs when server is back."
 
-**Q4: "Would you use REST or GraphQL for the non-real-time API?"**
-> "For a chat app, I'd lean REST:
-> - The data model is relatively simple (conversations, messages, users)
-> - REST's caching with HTTP cache headers works well for message history
-> - GraphQL's flexibility isn't needed here since the queries are predictable
->
-> If this were a more complex app with many interrelated entities (like a social network), GraphQL's ability to fetch exactly what you need in one request would be more valuable."
+### API & Protocol
 
-### WebSocket
+**Q4: "REST or GraphQL for the API?"**
+> "REST. The data model is simple (conversations, messages). REST gives me HTTP caching. GraphQL's flexibility isn't needed here since queries are predictable."
 
-**Q5: "What if WebSocket is blocked by a corporate firewall?"**
-> "Fallback to **long polling**: the client makes a GET request that the server holds open until there's new data (or a timeout of ~30s). When data arrives or timeout hits, the server responds, and the client immediately makes a new request. Libraries like Socket.IO handle this fallback automatically."
+**Q5: "What if WebSocket is blocked by a firewall?"**
+> "Fall back to long polling. Libraries like Socket.IO do this automatically."
 
-**Q6: "How do you scale WebSocket servers horizontally?"**
-> "This is more of a backend concern, but from the frontend perspective, I need to know that my WebSocket connection might be to a different server after reconnect. So:
-> - Messages must be identified by unique IDs, not connection state
-> - On reconnect, I send a `sync` request with my last-received timestamp
-> - The server (using Redis pub/sub or similar) ensures any server can serve any user"
-
-**Q7: "What protocol would you use on top of WebSocket?"**
-> "Plain JSON for simplicity. Each message is `{type: string, payload: any}`. For a production app at scale, I'd consider Protocol Buffers (smaller payload, strict schema) or MessagePack (binary JSON, ~30% smaller). But JSON is debuggable in DevTools, which matters during development."
+**Q6: "What protocol on top of WebSocket?"**
+> "JSON for simplicity and debuggability. At scale, Protocol Buffers or MessagePack (~30% smaller) would be better."
 
 ### Messages
 
-**Q8: "How do you prevent duplicate messages?"**
-> "Client-generated UUIDs are the key. Every message gets a UUID before sending. The server uses this as an idempotency key -- if it receives the same ID twice (retry scenario), it ignores the duplicate and just re-sends the ACK. On the client, I also deduplicate by ID when inserting into the messages array."
+**Q7: "How do you prevent duplicate messages?"**
+> "Client-generated UUIDs. Server uses the ID as an idempotency key -- if it receives the same ID twice (retry), it ignores the duplicate and re-sends the ACK."
 
-**Q9: "How would you implement message search?"**
-> "This depends on scale:
-> - **Simple approach**: API endpoint `GET /messages?q=search_term&conversationId=xyz` with server-side full-text search (Elasticsearch or PostgreSQL full-text)
-> - **Client-side**: For the active conversation, I could search through cached messages in IndexedDB for instant results, and show server results for full history
-> - **UI**: A search bar that shows results as a list. Clicking a result jumps to that message in the conversation (scroll-to-message feature)"
+**Q8: "How would you do message editing and deletion?"**
+> "Edit: server broadcasts `{type: 'message_edited', messageId, newContent}`. UI updates the message and shows '(edited)'.
+> Delete: server broadcasts `{type: 'message_deleted', messageId}`. UI replaces content with 'This message was deleted' (don't remove from array, avoids gaps)."
 
-**Q10: "How would you handle message editing and deletion?"**
-> "For editing: the server sends a `{type: 'message_edited', messageId, newContent, editedAt}` event via WebSocket. I update the message in state and show '(edited)' text. I'd keep the original content in the database for audit purposes.
->
-> For deletion: `{type: 'message_deleted', messageId}`. I replace the message content with 'This message was deleted' (like WhatsApp) rather than removing it from the array, to avoid confusing gaps in conversation."
+**Q9: "How do you handle images/media?"**
+> "1. User selects image → show local preview immediately (URL.createObjectURL)
+> 2. Upload to S3 via REST with progress bar
+> 3. Once uploaded, send message via WebSocket with the image URL
+> 4. Receiver renders thumbnail, click to view full size"
 
 ### Performance
 
-**Q11: "The conversation list shows 500 conversations. How do you keep it fast?"**
-> "Virtualize the conversation list too. Only render the ~15-20 visible conversations. The rest exist only in state/memory. Scrolling renders them on demand. Each `ConversationItem` is wrapped in `React.memo` since they rarely change."
+**Q10: "500 conversations in the sidebar. How to keep it fast?"**
+> "Virtualize the sidebar list too. Only render the ~15-20 visible items. `React.memo` each `ConversationItem` since they rarely change."
 
-**Q12: "What if a user is in 100 group chats and all are active?"**
-> "Prioritize updates:
-> 1. Active conversation: full real-time updates (messages, typing, presence)
-> 2. Other conversations: only update `lastMessage` and `unreadCount` (lightweight)
-> 3. Batch non-active conversation updates: instead of re-rendering the list on every message, batch updates with a 500ms debounce
->
-> Also, I wouldn't maintain WebSocket subscriptions for all groups simultaneously. I'd subscribe to the active conversation for detailed events and receive only notification-level events for others."
-
-**Q13: "How do you handle images and media in messages?"**
-> "Multi-step process:
-> 1. User selects an image → show a local preview immediately (URL.createObjectURL)
-> 2. Upload to cloud storage (S3/CloudFront) via REST API with progress tracking
-> 3. Once uploaded, send the message via WebSocket with the media URL
-> 4. Receiver gets the URL, renders a thumbnail (server-generated), click to view full
->
-> For performance: lazy load images not in viewport, use srcset for different resolutions, show a blurred placeholder (blur hash) during load."
+**Q11: "User is in 100 active group chats?"**
+> "Prioritize: active conversation gets full updates (messages, typing). Others only get lightweight updates (lastMessage, unreadCount). Batch sidebar updates with a 500ms debounce."
 
 ### Offline & Sync
 
-**Q14: "How much data do you cache offline?"**
-> "Bounded caching:
-> - Last 20 conversations (metadata)
-> - Last 50 messages per cached conversation
-> - All pending outgoing messages (unbounded, but realistically small)
->
-> Total: maybe 2-5 MB. Well within IndexedDB limits. I'd also implement LRU eviction -- if the cache grows beyond a threshold, drop the oldest conversations."
+**Q12: "How much data to cache offline?"**
+> "Bounded: last 20 conversations, last 50 messages each, all pending outgoing messages. Total: ~2-5 MB. LRU eviction if cache grows too large."
 
-**Q15: "What happens if the user was offline for 3 days?"**
-> "On reconnect, the sync could return thousands of messages. I wouldn't load all at once:
-> 1. First, sync conversation metadata (who sent what, unread counts) -- this is lightweight
-> 2. For the conversation the user opens, fetch recent messages on demand
-> 3. Background-sync other conversations gradually
->
-> Show a loading indicator during initial sync: 'Syncing messages...'"
+**Q13: "User was offline for 3 days?"**
+> "Don't dump everything at once. Sync conversation metadata first (lightweight), then fetch messages per-conversation on demand when user opens each chat."
 
-### Security
+### UX Edge Cases
 
-**Q16: "How do you store auth tokens on the client?"**
-> "Short answer: **httpOnly cookies** for the session, or an **in-memory variable** for the access token.
->
-> Never in localStorage (vulnerable to XSS). An httpOnly cookie can't be read by JavaScript, so it's safe from XSS. For the WebSocket auth, I'd use a short-lived token fetched via REST (which sends the httpOnly cookie automatically) and pass it during WebSocket handshake."
+**Q14: "What about link previews (like Slack)?"**
+> "Called 'unfurling'. Server detects URLs, fetches Open Graph metadata (title, description, image), attaches to message. Client renders a preview card. Important: server fetches the URL, not the client (privacy + security)."
 
-**Q17: "How do you prevent XSS in chat messages?"**
-> "Never use `dangerouslySetInnerHTML` for message content. Render messages as text nodes (`{message.content}` in JSX automatically escapes HTML).
->
-> If I need to render rich content (links, mentions), I'd parse the text and create React elements: detect URLs with a regex and wrap them in `<a>` tags, detect @mentions and wrap them in `<span>` with styling. But the raw text is never injected as HTML."
+**Q15: "User has same chat open on phone and laptop?"**
+> "Server sends messages to all active connections for that user. Read receipts from either device sync to the other. Each device syncs independently on reconnect. Eventually consistent."
 
-### UX & Edge Cases
-
-**Q18: "What if the user has slow internet (2G)?"**
-> "Adaptive UX:
-> - Detect connection quality using `navigator.connection.effectiveType`
-> - On slow connections: disable auto-loading images, reduce WebSocket heartbeat frequency, batch multiple small messages into single payloads
-> - Show clear loading states and progress indicators
-> - Offline queue becomes even more important -- messages might sit in 'sending' for a while"
-
-**Q19: "How does the typing indicator not become annoying?"**
-> "Two safeguards:
-> 1. **Throttle on sender side**: only send typing event every 3 seconds, not every keystroke
-> 2. **Timeout on receiver side**: hide typing indicator after 4 seconds of no new typing event. This handles the case where the user stopped typing but the 'stopped_typing' event was lost
->
-> Also, don't show typing indicator for the user's own messages, and in group chats, show at most 2 names ('Alice and Bob are typing...' or 'Alice and 3 others are typing...')"
-
-**Q20: "How would you implement push notifications?"**
-> "Using the **Push API** and **Service Worker**:
-> 1. On app load, request notification permission
-> 2. Register a push subscription with the server (subscription endpoint from the browser)
-> 3. When a message arrives and the user is NOT on the page, the server sends a push notification via the browser's push service
-> 4. The Service Worker receives it and shows a native notification using the Notification API
->
-> When the user clicks the notification, the Service Worker opens/focuses the app and navigates to the correct conversation."
-
-**Q21: "How do you handle the user having the same conversation open on phone and laptop?"**
-> "The server handles this by sending messages to all active connections for that user. Both devices get the message, both update their UI. Read receipts from either device sync to the other -- if the user reads on phone, the laptop should also clear the unread count.
->
-> On reconnect, each device syncs independently using the last-received timestamp. The result is eventually consistent."
-
-**Q22: "What about link previews (like Slack shows a preview card when you paste a URL)?"**
-> "This is **unfurling**:
-> 1. When a message is sent, the server detects URLs in the content
-> 2. The server fetches Open Graph metadata (title, description, image) from the URL
-> 3. This metadata is attached to the message and sent to clients
-> 4. The client renders a preview card below the message text
->
-> Important: the **server** fetches the URL, not the client. Fetching from the client would leak the user's IP and could be a security risk (SSRF in reverse). The server can also cache unfurled data."
-
-**Q23: "How would you test this chat application?"**
-> "Testing pyramid:
-> - **Unit tests**: message ordering logic, timestamp formatting, status calculations (Jest)
-> - **Component tests**: MessageBubble renders correctly for each status, ConversationList sorts properly (React Testing Library)
-> - **Integration tests**: full send/receive flow with a mocked WebSocket (MSW or custom WebSocket mock)
-> - **E2E tests**: two browser instances sending messages to each other (Playwright)
->
-> I'd particularly focus on testing edge cases: offline → online transitions, out-of-order messages, duplicate messages, reconnection scenarios."
-
-**Q24: "What if we need end-to-end encryption?"**
-> "E2E encryption means the server can't read message content. On the frontend:
-> - Use the Web Crypto API to generate key pairs per user
-> - Exchange public keys during conversation setup (via the server, but it can't decrypt)
-> - Encrypt each message client-side before sending, decrypt on receipt
-> - This breaks server-side search and link unfurling (server can't read content)
->
-> This is conceptually the Signal Protocol. It's a massive scope increase, so I'd mention it as a future consideration."
-
-**Q25: "You mentioned you'd use Zustand. Walk me through how you'd structure the store."**
-> ```typescript
-> const useChatStore = create((set, get) => ({
->   conversations: {},
->   messages: {},
->   activeConversationId: null,
->
->   addMessage: (conversationId, message) => set(state => ({
->     messages: {
->       ...state.messages,
->       [conversationId]: insertMessageInOrder(
->         state.messages[conversationId] || [],
->         message
->       ),
->     },
->   })),
->
->   updateMessageStatus: (messageId, status) => set(state => {
->     // find and update the message across conversations
->   }),
->
->   setActiveConversation: (id) => set({ activeConversationId: id }),
-> }));
-> ```
->
-> "Components subscribe to specific slices using selectors, so only relevant components re-render:
-> `const messages = useChatStore(state => state.messages[conversationId]);`"
+**Q16: "How would you test this?"**
+> "Unit tests: message ordering logic, timestamp formatting (Jest).
+> Component tests: MessageBubble for each status (React Testing Library).
+> Integration: send/receive flow with mocked WebSocket.
+> E2E: two browsers chatting with each other (Playwright)."
 
 ---
 
 ## Cheat Sheet: Things That Impress Interviewers
 
-These are things most candidates DON'T mention. Bring them up naturally.
-
-### 1. Say "trade-off" a lot (genuinely)
-Don't just pick a technology -- explain what you'd lose.
-> "I'd go with WebSocket over SSE. The trade-off is that WebSocket requires more server infrastructure and doesn't work through some proxies, but for chat, bidirectional communication outweighs those costs."
+### 1. Always explain trade-offs
+> Don't just say "I'd use WebSocket." Say "I'd use WebSocket over SSE because chat needs bidirectional communication. The trade-off is more complex server infrastructure."
 
 ### 2. Mention failure scenarios unprompted
-> "What happens if the WebSocket connection drops mid-message-send? The message is in our queue. On reconnect, we re-send with the same ID so the server can deduplicate."
+> "What if the connection drops mid-send? The message is queued. On reconnect, we re-send with the same ID so the server can deduplicate."
 
-### 3. Show awareness of real products
-> "WhatsApp uses a similar approach for read receipts -- they send a watermark (last read message ID) rather than individual receipts per message. This reduces traffic significantly."
+### 3. Reference real products
+> "WhatsApp uses the watermark pattern for read receipts -- one event marks all messages as read, instead of one event per message."
 
-### 4. Mention metrics you'd track
-> "In production, I'd monitor message delivery latency as a p50/p95 metric. If p95 goes above 1 second, something's wrong with our WebSocket infrastructure."
+### 4. Tie decisions back to UX
+> "The scroll position restoration exists purely because losing your place while reading is frustrating. It's a small technical detail that makes a huge experience difference."
 
-### 5. Acknowledge what you don't know
-> "I'm not deeply familiar with CRDT algorithms for conflict resolution, but I know that's the approach Figma uses for real-time collaboration. For our chat app, server-ordered timestamps are sufficient since messages don't conflict."
+### 5. Acknowledge what you don't know (this is HUGE)
+> "I haven't implemented WebSocket reconnection with jitter in production, but I know the thundering herd problem from reading about it, and here's how I'd approach it..."
 
-This is 10x more impressive than bluffing.
+This is 10x more impressive than bluffing. The interviewer knows you're at 4 years experience. They want to see **how you think**, not that you've built everything before.
 
-### 6. Tie back to user experience
-> "The reason I save scroll position is purely UX -- nothing is more frustrating than losing your place in a conversation because new messages pushed you around."
-
-### 7. Think about the empty states and loading states
-> "When the user first opens a conversation, I show skeleton message bubbles while loading. If the conversation has no messages, I show a friendly empty state: 'Say hi to Alice!' with a wave emoji."
-
-### 8. As someone with basic frontend experience specifically:
-
-**What to lean into:**
-- Be honest about your experience level. Saying "In my experience with simpler apps, I've handled X, and I'd approach this at scale by doing Y" is genuine and credible
-- Focus on **fundamentals** you know well (React state management, component design, CSS layout)
-- Show curiosity: "I haven't implemented WebSocket reconnection with exponential backoff in production, but here's how I'd approach it based on what I know about retry patterns"
-
-**What to avoid:**
-- Don't pretend you've built WhatsApp before
-- Don't use buzzwords you can't explain if probed
-- Don't rush past areas you're weak in -- slow down and reason through them
-
-**A strong signal for a mid-level candidate is:**
-> "I know what I know, I know what I don't know, and I can reason through the things I don't know."
+### 6. Mention loading + empty states
+> "When user opens a conversation, I'd show skeleton message bubbles while loading. Empty conversation shows 'Say hi to Alice!' as a prompt."
 
 ---
 
 ## Summary: The 5-Minute Recap
 
-If you only remember 5 things about this design:
+If you only remember 5 things:
 
-1. **WebSocket for real-time, REST for history** -- two communication channels, each for the right job
-2. **Optimistic UI with client-generated IDs** -- show the message immediately, reconcile with server timestamp later, use the same ID for idempotent retries
-3. **Exponential backoff with jitter for reconnection** -- prevents thundering herd, handles flaky networks gracefully
-4. **Scroll position management** -- auto-scroll if near bottom, preserve position if scrolled up, restore position when loading older messages above
-5. **IndexedDB for offline queue** -- survives tab closes, enables offline-first experience, bounded cache with LRU eviction
-
-Practice explaining each of these in 2 minutes. If you can do that fluently, you'll do well.
+1. **WebSocket for real-time, REST for history** -- two channels, each for the right job
+2. **Optimistic UI with client-generated IDs** -- show immediately, confirm later, same ID for retries (idempotent)
+3. **Exponential backoff + jitter** -- prevents thundering herd on reconnect
+4. **Scroll position management** -- auto-scroll if near bottom, preserve position if scrolled up, restore after prepending
+5. **IndexedDB for offline queue** -- survives tab close, enables instant app load from cache
 
 ---
 
-*Estimated study time: 3-4 hours to read and understand, then 2-3 practice runs explaining it aloud (use a timer, 45 minutes each).*
+*Estimated study time: 2-3 hours to read and understand, then 2-3 practice runs explaining it aloud (45 minutes each).*
