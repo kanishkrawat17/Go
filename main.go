@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"GoLearning/utils"
+	"GoLearning/closures"
 )
 
 const apiName = "messages"
@@ -51,4 +52,17 @@ func main() {
 	fmt.Println("Value of X: ",  x)
 
 	fmt.Println(&y,"Val of y: ", y)
+
+	// var z int = 10;
+
+	c := &Calculator{ result: 100 }
+	c.Add(10);
+
+	fmt.Println(c, )
+
+	counter := closures.MakeCounter();
+	counter()
+	counter()
+	fmt.Println(counter())
+
 }
