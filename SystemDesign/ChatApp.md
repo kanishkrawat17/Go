@@ -1109,6 +1109,99 @@ User hits Send while offline
   → UI updates ⏳ → ✓
 ```
 
+### Common Confusion: When does Zustand die? When does IndexedDB kick in?
+
+This is subtle and interviewers may probe on it. Understand this clearly:
+
+**Zustand state lives in RAM (browser memory).** It has NOTHING to do with internet.
+
+```
+Going offline (WiFi drops, subway, etc.)
+  → Does Zustand state disappear?  NO. It's in RAM. Still there.
+  → Does the UI break?             NO. UI reads from Zustand, not from server.
+  → Does the page refresh?         NO. Nothing happens to the page.
+  → The ONLY thing that happens:
+      WebSocket's onclose fires → connectionStatus = "disconnected" → banner shown.
+      Everything else on screen stays exactly the same.
+
+Zustand state is ONLY lost when:
+  → User closes the tab
+  → User refreshes the page (F5)
+  → Browser crashes
+```
+
+**IndexedDB is the safety net for when Zustand dies (tab close / refresh).**
+
+Think of it as:
+```
+Zustand    = notepad on your desk    (fast, but gone if you leave the room)
+IndexedDB  = photocopy in your drawer (slower, but survives you leaving)
+Server     = original in the office   (needs internet to reach)
+```
+
+Here are the two scenarios to understand the difference:
+
+```
+SCENARIO A: User goes offline, keeps tab open, comes back online
+─────────────────────────────────────────────────────────────────
+1. Chatting normally                    Zustand: ✅  IndexedDB: ✅ (auto-saved copy)
+2. Internet drops                       Zustand: ✅  IndexedDB: ✅
+   (UI still works, just shows banner)  (RAM doesn't care about internet)
+3. User sends message offline           Zustand: ✅ adds msg ⏳   IndexedDB: ✅ saves copy
+4. Internet returns, WebSocket syncs    Zustand: ✅ ⏳ → ✓        IndexedDB: ✅ updates
+
+   IndexedDB was NOT needed here. Tab was never closed. Zustand handled everything.
+```
+
+```
+SCENARIO B: User goes offline, CLOSES THE TAB, reopens later
+─────────────────────────────────────────────────────────────────
+1. Chatting normally                    Zustand: ✅  IndexedDB: ✅ (auto-saved copy)
+2. Internet drops                       Zustand: ✅  IndexedDB: ✅
+3. User sends message offline           Zustand: ✅ adds msg ⏳   IndexedDB: ✅ saves copy
+4. User CLOSES THE TAB                  Zustand: ❌ GONE (RAM cleared)
+                                        IndexedDB: ✅ still has everything (on disk)
+5. User reopens app (still no internet)
+   → Zustand starts empty
+   → persist middleware reads from IndexedDB → fills Zustand
+   → UI shows cached conversations + pending message ⏳
+   → No internet needed. IndexedDB is a local file on disk.
+
+   THIS is where IndexedDB saved us. Without it → blank screen.
+
+6. Internet returns eventually
+   → WebSocket connects → flushes pending msg → ⏳ becomes ✓
+```
+
+**How the auto-sync from Zustand → IndexedDB works (in code):**
+
+```typescript
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+
+const useChatStore = create(
+  persist(                              // ← This middleware handles the sync
+    (set) => ({
+      conversations: {},
+      messages: {},
+      addMessage: (msg) => set((state) => ({ /* ...update... */ })),
+    }),
+    {
+      name: 'chat-store',              // key in IndexedDB
+      storage: createJSONStorage(() => indexedDBStorage),
+    }
+  )
+);
+
+// What the persist middleware does automatically:
+// 1. On EVERY set() call → writes updated state to IndexedDB (background, async)
+// 2. On app startup → reads from IndexedDB → fills Zustand with cached data
+// You never manually save or load. It just works.
+```
+
+**Key interview line to say:**
+> "Zustand is the single source of truth at runtime. The persist middleware mirrors state to IndexedDB on every update. IndexedDB is only read on app startup — to rehydrate Zustand after a tab close or refresh. Going offline doesn't affect Zustand at all since it's in-memory."
+
 ### Why IndexedDB, not localStorage?
 
 | | localStorage | IndexedDB |
